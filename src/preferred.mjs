@@ -69,33 +69,79 @@ export function normalizePreferredList(text, defaultPort = '443') {
   return lines.flatMap(line => line.split(',').map(value => value.trim()).filter(Boolean)).join('\n');
 }
 
-export async function fetchPreferredList(value, signal) {
-  let url = new URL(value);
-  for (let redirects = 0; redirects <= 3; redirects++) {
-    const response = await readPublic(url, { signal });
-    if ([301, 302, 303, 307, 308].includes(response.status) && response.headers.location) {
-      url = new URL(response.headers.location, url); continue;
-    }
-    if (response.status !== 200) throw new Error('列表来源返回 HTTP ' + response.status);
-    return normalizePreferredList(response.body, url.searchParams.get('port') || '443');
+const listCache = new Map();
+const LIST_CACHE_TTL = 45000;
+const LIST_CACHE_MAX = 64;
+const listInflight = new Map();
+
+const PROBE_CONCURRENCY = 5;
+let probeActive = 0;
+const probeWaiters = [];
+
+function acquireProbeSlot() {
+  if (probeActive < PROBE_CONCURRENCY) {
+    probeActive++;
+    return Promise.resolve();
   }
-  throw new Error('列表来源重定向过多');
+  return new Promise(resolve => probeWaiters.push(resolve));
+}
+
+function releaseProbeSlot() {
+  const next = probeWaiters.shift();
+  if (next) next();
+  else probeActive = Math.max(0, probeActive - 1);
+}
+
+export async function fetchPreferredList(value, signal) {
+  const cacheKey = String(value).trim();
+  const cached = listCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached.body;
+
+  let pending = listInflight.get(cacheKey);
+  if (pending) return pending;
+
+  pending = (async () => {
+    let url = new URL(value);
+    for (let redirects = 0; redirects <= 3; redirects++) {
+      const response = await readPublic(url, { signal });
+      if ([301, 302, 303, 307, 308].includes(response.status) && response.headers.location) {
+        url = new URL(response.headers.location, url); continue;
+      }
+      if (response.status !== 200) throw new Error('列表来源返回 HTTP ' + response.status);
+      const body = normalizePreferredList(response.body, url.searchParams.get('port') || '443');
+      if (listCache.size >= LIST_CACHE_MAX) listCache.delete(listCache.keys().next().value);
+      listCache.set(cacheKey, { expires: Date.now() + LIST_CACHE_TTL, body });
+      return body;
+    }
+    throw new Error('列表来源重定向过多');
+  })().finally(() => {
+    if (listInflight.get(cacheKey) === pending) listInflight.delete(cacheKey);
+  });
+
+  listInflight.set(cacheKey, pending);
+  return pending;
 }
 
 export async function probePreferred(workerBase, address, port, signal) {
   const numericPort = Number(port);
   if (!Number.isInteger(numericPort) || (!tlsPorts.has(numericPort) && !plainPorts.has(numericPort))) throw new Error('请使用 Cloudflare 支持的端口');
-  const addresses = await resolveAddress(address);
-  const worker = new URL(workerBase);
-  const url = new URL((tlsPorts.has(numericPort) ? 'https://' : 'http://') + worker.hostname + ':' + numericPort + '/');
-  const started = performance.now();
-  let response;
-  // 域名含双栈记录时允许正常的地址族回退；每一个实际连接地址都经过公网检查。
-  for (const pinned of addresses.slice(0, 4)) {
-    try { response = await readPublic(url, { address: pinned, signal, limit: 4096 }); break; }
-    catch (error) { if (signal?.aborted || pinned === addresses.slice(0, 4).at(-1)) throw error; }
+  await acquireProbeSlot();
+  try {
+    if (signal?.aborted) throw new Error('检测已取消');
+    const addresses = await resolveAddress(address);
+    const worker = new URL(workerBase);
+    const url = new URL((tlsPorts.has(numericPort) ? 'https://' : 'http://') + worker.hostname + ':' + numericPort + '/');
+    const started = performance.now();
+    let response;
+    // 域名含双栈记录时允许正常的地址族回退；每一个实际连接地址都经过公网检查。
+    for (const pinned of addresses.slice(0, 4)) {
+      try { response = await readPublic(url, { address: pinned, signal, limit: 4096 }); break; }
+      catch (error) { if (signal?.aborted || pinned === addresses.slice(0, 4).at(-1)) throw error; }
+    }
+    if (!response || response.status !== 200 || response.body.trim() !== 'hello') return { success: false, latency: -1, colo: '', error: '该地址未连接到精简内核' };
+    const colo = String(response.headers['cf-ray'] || '').split('-').at(-1);
+    return { success: true, latency: Math.max(1, Math.round(performance.now() - started)), colo: /^[A-Z]{3}$/.test(colo) ? colo : '', vantage: 'server' };
+  } finally {
+    releaseProbeSlot();
   }
-  if (!response || response.status !== 200 || response.body.trim() !== 'hello') return { success: false, latency: -1, colo: '', error: '该地址未连接到精简内核' };
-  const colo = String(response.headers['cf-ray'] || '').split('-').at(-1);
-  return { success: true, latency: Math.max(1, Math.round(performance.now() - started)), colo: /^[A-Z]{3}$/.test(colo) ? colo : '', vantage: 'server' };
 }
