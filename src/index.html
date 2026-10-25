@@ -1,1 +1,161 @@
-PLACEHOLDER_INDEX
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>CFnew 独立面板</title>
+</head>
+<body class="landing">
+<main>
+  <div class="header">
+    <h1 class="title">连接你的 Worker</h1>
+    <p class="subtitle">填写域名和 UUID 或自定义路径</p>
+  </div>
+  <div class="card">
+  <div class="brand">接入控制台</div>
+  <form action="/panel" method="get" id="connectForm">
+    <label for="host">Worker 域名</label>
+    <input type="text" id="host" name="host" placeholder="worker.example.com" required autocomplete="off" spellcheck="false" inputmode="url">
+    <label for="uuid">UUID 或自定义路径</label>
+    <input type="text" id="uuid" name="uuid" placeholder="填写 UUID，或 d 设置的路径" required autocomplete="off" spellcheck="false">
+    <label class="remember"><input id="remember" type="checkbox">在这台设备记住节点</label>
+    <div id="historyControls" class="history-row" hidden>
+      <select id="history" aria-label="已保存的节点"></select>
+      <button type="button" id="deleteNode" disabled>删除所选</button>
+      <button type="button" id="clearAll" hidden>清空全部</button>
+    </div>
+    <small id="historyStatus" role="status" hidden></small>
+    <button type="submit" id="submitBtn">打开控制台</button>
+    <small>代理流量直接连接 Worker。订阅从本服务更新。</small>
+  </form>
+  </div>
+  <small id="panelVersion">面板版本 __CFNEW_PANEL_VERSION__</small>
+</main>
+<script>
+(function () {
+  const historyInput = document.getElementById('history');
+  const historyControls = document.getElementById('historyControls');
+  const deleteNode = document.getElementById('deleteNode');
+  const clearAll = document.getElementById('clearAll');
+  const historyStatus = document.getElementById('historyStatus');
+  const hostInput = document.getElementById('host');
+  const uuidInput = document.getElementById('uuid');
+  const remember = document.getElementById('remember');
+  const form = document.getElementById('connectForm');
+  const submitBtn = document.getElementById('submitBtn');
+  const STORAGE_KEY = 'cfnew-panel-nodes';
+  let nodes = [];
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    if (Array.isArray(saved)) {
+      nodes = saved.filter(node => node && typeof node.host === 'string' && typeof node.uuid === 'string');
+    }
+  } catch {}
+
+  function shortLabel(node) {
+    const host = node.host.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+    const id = node.uuid;
+    if (/^[0-9a-f-]{36}$/i.test(id)) return host + ' · ' + id.slice(0, 8);
+    return host + ' · /' + id.slice(0, 16) + (id.length > 16 ? '…' : '');
+  }
+
+  function saveNodes() {
+    try {
+      if (nodes.length) localStorage.setItem(STORAGE_KEY, JSON.stringify(nodes));
+      else localStorage.removeItem(STORAGE_KEY);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function renderHistory() {
+    historyInput.replaceChildren(new Option('选择已保存的节点', ''));
+    nodes.forEach((node, index) => historyInput.add(new Option(shortLabel(node), String(index))));
+    historyControls.hidden = nodes.length === 0;
+    clearAll.hidden = nodes.length < 2;
+    deleteNode.disabled = true;
+  }
+
+  function fillFrom(node) {
+    hostInput.value = node.host;
+    uuidInput.value = node.uuid;
+    historyStatus.hidden = true;
+  }
+
+  renderHistory();
+
+  // 只有一条历史时自动回填，方便快速进入
+  if (nodes.length === 1) {
+    fillFrom(nodes[0]);
+    historyInput.value = '0';
+    deleteNode.disabled = false;
+  }
+
+  historyInput.addEventListener('change', () => {
+    deleteNode.disabled = historyInput.value === '';
+    if (deleteNode.disabled) return;
+    fillFrom(nodes[Number(historyInput.value)]);
+  });
+
+  deleteNode.addEventListener('click', () => {
+    if (historyInput.value === '') return;
+    const index = Number(historyInput.value);
+    const node = nodes[index];
+    nodes = nodes.filter((_, position) => position !== index);
+    if (!saveNodes()) {
+      historyStatus.textContent = '删除失败，浏览器暂时无法保存本地记录。';
+      historyStatus.hidden = false;
+      return;
+    }
+    if (hostInput.value === node.host && uuidInput.value === node.uuid) {
+      hostInput.value = '';
+      uuidInput.value = '';
+    }
+    remember.checked = false;
+    renderHistory();
+    historyStatus.textContent = '已删除这台设备上的记录，Worker 配置不受影响。';
+    historyStatus.hidden = false;
+  });
+
+  clearAll.addEventListener('click', () => {
+    if (!nodes.length || !confirm('确定清空本设备上保存的全部节点记录？')) return;
+    nodes = [];
+    if (!saveNodes()) {
+      historyStatus.textContent = '清空失败，浏览器暂时无法保存本地记录。';
+      historyStatus.hidden = false;
+      return;
+    }
+    hostInput.value = '';
+    uuidInput.value = '';
+    remember.checked = false;
+    renderHistory();
+    historyStatus.textContent = '已清空本设备全部记录，Worker 配置不受影响。';
+    historyStatus.hidden = false;
+  });
+
+  form.addEventListener('submit', (event) => {
+    const host = hostInput.value.trim();
+    const uuid = uuidInput.value.trim();
+    if (!host || !uuid) return;
+
+    // 防重复提交
+    if (submitBtn.disabled) {
+      event.preventDefault();
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = '正在打开…';
+
+    if (remember.checked) {
+      const node = { host, uuid };
+      nodes = [node, ...nodes.filter(item => item.host !== node.host || item.uuid !== node.uuid)].slice(0, 20);
+      saveNodes();
+    }
+  });
+})();
+</script>
+</body>
+</html>
