@@ -7,6 +7,8 @@ function respond(response, method) {
   headers.set('Cache-Control', 'no-store');
   headers.set('Referrer-Policy', 'no-referrer');
   headers.set('X-Content-Type-Options', 'nosniff');
+  headers.set('X-Frame-Options', 'DENY');
+  headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   return new Response(method === 'HEAD' ? null : response.body, { status: response.status, headers });
 }
 
