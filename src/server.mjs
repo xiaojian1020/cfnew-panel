@@ -207,7 +207,15 @@ export async function handlePanel(request) {
     }
   }
   if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('只支持 GET', { status: 405 });
-  if (url.pathname === '/health') return Response.json({ ok: true });
+  if (url.pathname === '/health') {
+    let bound = '';
+    try { bound = allowedWorker(); } catch { bound = ''; }
+    return Response.json({
+      ok: true,
+      version: PANEL_VERSION,
+      boundWorker: Boolean(bound),
+    });
+  }
   if (url.pathname === '/rules-license') return new Response(rulesLicense, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' } });
   if (url.pathname === '/') {
     if (boundWorker) return new Response('hello', { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
@@ -262,7 +270,13 @@ export function createPanelServer() {
       const request = new Request('http://' + (incoming.headers.host || 'localhost') + incoming.url, { method: incoming.method, headers: incoming.headers, ...(chunks.length ? { body: Buffer.concat(chunks) } : {}) });
       const response = await handlePanel(request);
       const headers = Object.fromEntries(response.headers);
-      Object.assign(headers, { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff' });
+      Object.assign(headers, {
+        'Cache-Control': 'no-store',
+        'Referrer-Policy': 'no-referrer',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+      });
       outgoing.writeHead(response.status, headers);
       if (incoming.method === 'HEAD') { outgoing.end(); return; }
       outgoing.end(Buffer.from(await response.arrayBuffer()));
