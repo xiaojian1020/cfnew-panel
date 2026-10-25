@@ -5,7 +5,7 @@ import test from 'node:test';
 
 process.env.CFNEW_ALLOW_PRIVATE = 'yes';
 const { handlePanel } = await import('../server.mjs');
-const panelVersion = '2026.10.17.4';
+const panelVersion = '2026.10.17.2';
 const coreFixtureVersion = '2026.10.17.2';
 const uuid = '351c9981-04b6-4103-aa4b-864aa9c91469';
 const source = await readFile(process.env.CFNEW_TEST_CORE || new URL('../../明文源吗', import.meta.url), 'utf8');
