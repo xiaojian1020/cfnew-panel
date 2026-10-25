@@ -26,7 +26,11 @@ test('Vercel入口按实际流式字节限制请求体，不信任Content-Length
 });
 
 test('Vercel入口保留健康检查和404，不把运行文件当静态资源暴露', async () => {
-  assert.deepEqual(await (await handleVercelRequest(new Request('https://panel.example/health'))).json(), { ok: true });
+  const health = await (await handleVercelRequest(new Request('https://panel.example/health'))).json();
+  assert.equal(health.ok, true);
+  assert.equal(typeof health.version, 'string');
+  assert.equal(typeof health.boundWorker, 'boolean');
+  assert.equal((await handleVercelRequest(new Request('https://panel.example/health'))).headers.get('x-frame-options'), 'DENY');
   for (const path of ['/server.mjs', '/api/index.mjs', '/package.json', '/.env']) {
     assert.equal((await handleVercelRequest(new Request('https://panel.example' + path))).status, 404, path);
   }
