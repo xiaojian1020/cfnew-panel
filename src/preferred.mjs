@@ -268,3 +268,48 @@ export async function probePreferred(workerBase, address, port, signal) {
   probeInflight.set(key, pending);
   return pending;
 }
+
+const BATCH_MAX = 20;
+
+export async function probePreferredBatch(workerBase, items, signal) {
+  if (!Array.isArray(items) || !items.length) throw new Error('请提供待检测地址列表');
+  const list = items.slice(0, BATCH_MAX).map((item, index) => ({
+    index,
+    address: String(item?.address || item?.host || '').replace(/^\[|\]$/g, '').trim(),
+    port: Number(item?.port) || 443,
+  })).filter(item => item.address);
+
+  if (!list.length) throw new Error('没有有效的检测地址');
+
+  const results = await Promise.all(list.map(async item => {
+    try {
+      if (signal?.aborted) throw new Error('检测已取消');
+      const result = await probePreferred(workerBase, item.address, item.port, signal);
+      return {
+        index: item.index,
+        address: item.address,
+        port: item.port,
+        success: Boolean(result.success),
+        latency: result.latency ?? -1,
+        colo: result.colo || '',
+        error: result.error || '',
+        cached: Boolean(result.cached),
+        vantage: result.vantage || 'server',
+      };
+    } catch (error) {
+      return {
+        index: item.index,
+        address: item.address,
+        port: item.port,
+        success: false,
+        latency: -1,
+        colo: '',
+        error: error.message || '检测失败',
+        cached: false,
+        vantage: 'server',
+      };
+    }
+  }));
+
+  return { success: true, count: results.length, results };
+}
