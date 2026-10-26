@@ -1,4 +1,4 @@
-export const PANEL_VERSION = '2026.10.17.2';
+export const PANEL_VERSION = '2026.10.17.5';
 
 export function coreRelease(config) {
   const coreVersion = typeof config.coreVersion === 'string' ? config.coreVersion : '';
