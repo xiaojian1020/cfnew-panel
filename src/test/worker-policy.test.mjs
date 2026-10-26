@@ -74,7 +74,7 @@ test('其它Worker在页面、订阅、所有转发接口和优选服务均先�
   for (const suffix of ['/api/config', '/api/preferred-ips', '/region', '/test-api']) {
     for (const method of ['GET', 'POST', 'DELETE']) attempts.push([other.api + suffix, { method, ...(method !== 'GET' ? { body: '{}' } : {}) }]);
   }
-  for (const path of ['/api/preferred/list', '/api/preferred/probe']) attempts.push([path, { method: 'POST', body: JSON.stringify({ host: other.host, uuid, url: 'https://example.com/list', address: '104.16.1.1', port: 443 }) }]);
+  for (const path of ['/api/preferred/list', '/api/preferred/probe', '/api/preferred/probe-batch']) attempts.push([path, { method: 'POST', body: JSON.stringify({ host: other.host, uuid, url: 'https://example.com/list', address: '104.16.1.1', port: 443, items: [{ address: '104.16.1.1', port: 443 }] }) }]);
   const before = other.values.get('c');
   for (const [path, init] of attempts) {
     const response = await request(path, { ...init, headers: { Origin: allowed.host, Referer: allowed.host, 'X-Forwarded-Host': new URL(allowed.host).host } });
