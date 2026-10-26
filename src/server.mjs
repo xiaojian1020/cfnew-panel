@@ -5,7 +5,7 @@ import { isIP } from 'node:net';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { createSubscriptionEngine } from './engine.mjs';
-import { isPublicAddress, fetchPreferredList, probePreferred } from './preferred.mjs';
+import { isPublicAddress, fetchPreferredList, probePreferred, probePreferredBatch } from './preferred.mjs';
 import { PANEL_VERSION, coreRelease } from './release.mjs';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -193,7 +193,7 @@ export async function handlePanel(request) {
     const match = url.pathname.match(/^\/(.+)(\/api\/config|\/api\/preferred-ips|\/region|\/test-api)\/?$/);
     if (match) return handleWorkerApi(request, boundWorker, match[1], match[2]);
   }
-  if (['/api/preferred/probe', '/api/preferred/list'].includes(url.pathname)) {
+  if (['/api/preferred/probe', '/api/preferred/probe-batch', '/api/preferred/list'].includes(url.pathname)) {
     if (request.method !== 'POST') return Response.json({ message: '只支持 POST' }, { status: 405 });
     try {
       const data = await request.json();
@@ -201,6 +201,7 @@ export async function handlePanel(request) {
       const uuid = normalizeAccess(data.uuid);
       await authorizePreferred(workerBase, uuid);
       if (url.pathname.endsWith('/list')) return new Response(await fetchPreferredList(data.url, request.signal), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      if (url.pathname.endsWith('/probe-batch')) return Response.json(await probePreferredBatch(workerBase, data.items || data.list || [], request.signal));
       return Response.json(await probePreferred(workerBase, data.address, data.port, request.signal));
     } catch (error) {
       return Response.json({ success: false, message: error.message, latency: -1 }, { status: error.status || 400 });
