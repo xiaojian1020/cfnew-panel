@@ -2577,6 +2577,8 @@ function 生成客户端链接(客户端类型, 客户端名称) {
     if (客户端名称 === 'V2RAY') {
       navigator.clipboard.writeText(最终网址).then(function () {
         显示提示(显示名称 + " " + 翻译值20207.subscriptionCopied, 'success');
+      }).catch(function () {
+        显示提示((显示名称 ? 显示名称 + ' ' : '') + '复制失败，请手动长按链接复制', 'warn');
       });
     } else if (客户端名称 === 'Shadowrocket') {
       方案网址 = '${解码64('c2hhZG93cm9ja2V0Oi8vYWRkLw==')}' + encodeURIComponent(最终网址);
@@ -3305,6 +3307,8 @@ function 更新工作器地区状态() {
 async function 保存配置(配置数据20107) {
   try {
     if (typeof 配置数据20107.yx === 'string') 配置数据20107 = { ...配置数据20107, yx: 配置数据20107.yx.split(/[,\\r\\n]+/).map(值 => 值.trim()).filter(Boolean).join(',') };
+    try { 显示状态('正在保存配置…', 'success'); } catch {}
+    try { if (typeof 显示操作状态 === 'function') 显示操作状态('正在保存…', 'ok'); } catch {}
     const 响应 = await fetch(window.CFNEW.apiBase + '/api/config', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(配置数据20107)
@@ -3314,11 +3318,15 @@ async function 保存配置(配置数据20107) {
       throw new Error(响应.status === 413 ? '配置过大，请减少优选条目或改用列表 URL' : '服务器响应格式异常（HTTP ' + 响应.status + '），请稍后重试');
     }
     if (!响应.ok || !结果 || 结果.success !== true) throw new Error(结果?.message || 结果?.error || '保存失败（HTTP ' + 响应.status + '）');
+    try { 显示状态('保存成功，页面即将刷新', 'success'); } catch {}
+    try { if (typeof 显示操作状态 === 'function') 显示操作状态('保存成功', 'ok'); } catch {}
     await 加载当前配置();
     更新工作器地区状态();
     setTimeout(function () { window.location.reload(); }, 1500);
   } catch (错误) {
-    显示状态('保存失败: ' + 错误.message, 'error');
+    const 文案 = (错误 && 错误.message) ? 错误.message : '网络异常，请稍后重试';
+    try { 显示状态('保存失败: ' + 文案, 'error'); } catch {}
+    try { if (typeof 显示操作状态 === 'function') 显示操作状态('保存失败: ' + 文案, 'err'); } catch {}
     throw 错误;
   }
 }
@@ -3519,16 +3527,20 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     const 本地值20082 = document.getElementById('cpBtnSaveAll');
+    const 原始文案 = 本地值20082 ? 本地值20082.textContent : '';
     if (本地值20082) {
       本地值20082.classList.add('cp-action-btn-saving');
       本地值20082.disabled = true;
+      本地值20082.textContent = '${是否值236 ? 'در حال ذخیره…' : '保存中…'}';
     }
     try {
       await 保存配置(收集全部配置());
+    } catch (保存错误) {
     } finally {
       if (本地值20082) {
         本地值20082.classList.remove('cp-action-btn-saving');
         本地值20082.disabled = false;
+        if (原始文案) 本地值20082.textContent = 原始文案;
       }
     }
   }
