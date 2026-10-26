@@ -3860,7 +3860,34 @@ document.addEventListener('DOMContentLoaded', function () {
         if (测试值控制器.signal.aborted) break;
         const 本地值20036 = 本地值20058.slice(索引值20037, Math.min(索引值20037 + 线程数, 本地值20054));
         测试状态.textContent = '${是否值236 ? 'در حال تست' : '测试中'}: ' + (索引值20037 + 1) + '-' + Math.min(索引值20037 + 线程数, 本地值20054) + '/' + 本地值20054 + ' (${是否值236 ? 'رشته‌ها' : '线程'}: ' + 线程数 + ')';
-        const 结果列表 = await Promise.all(本地值20036.map(翻译值 => 测试单项(翻译值)));
+        let 结果列表;
+        try {
+          const 批量项 = 本地值20036.map(目标 => {
+            const { host: 主机批, port: 端口批, nodeName: 名称批 } = 解析目标(目标);
+            return { address: 主机批.replace(/^\[|\]$/g, ''), port: Number(端口批), nodeName: 名称批, host: 主机批 };
+          });
+          const 批量响应 = await 请求优选操作('probe-batch', { items: 批量项.map(({ address, port }) => ({ address, port })) }, 测试值控制器.signal);
+          const 批量数据 = await 批量响应.json();
+          if (!批量响应.ok || !批量数据 || !Array.isArray(批量数据.results)) throw new Error(批量数据 && 批量数据.message || '批量检测失败');
+          结果列表 = 批量数据.results.map((项, 序号) => {
+            const 元 = 批量项[序号] || 批量项[项.index] || {};
+            const 主机批 = 元.host || 项.address;
+            const 端口批 = 元.port || 项.port;
+            const 名称批 = 元.nodeName || '';
+            return {
+              success: Boolean(项.success),
+              latency: 项.latency ?? -1,
+              colo: 项.colo || '',
+              error: 项.error || '',
+              host: 主机批,
+              port: 端口批,
+              customNodeName: 名称批,
+              nodeName: 项.success && 项.colo ? 名称批 || 'CF-' + 项.colo : 名称批 || 主机批
+            };
+          });
+        } catch (批量错误) {
+          结果列表 = await Promise.all(本地值20036.map(翻译值 => 测试单项(翻译值)));
+        }
         for (const 结果20035 of 结果列表) {
           if (结果20035) {
             const 索引20034 = 测试结果列表.length;
