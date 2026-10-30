@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/server.mjs",
     "test": "CFNEW_TEST_CORE=./test/core-fixture.mjs node --test src/test/*.test.mjs",
-    "build:vercel": "node src/tools/build-vercel.mjs"
+    "build:vercel": "node src/tools/build-vercel.mjs",
+    "test:nodes": "node scripts/test-nodes.mjs"
   },
   "engines": {
     "node": "22.x"
