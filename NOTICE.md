@@ -13,3 +13,7 @@
 - 分流规则：[MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat)
 
 测试夹具 test/core-fixture.mjs 来自 CFnew 的 core-only 分支，仅用于隔离测试，不会在面板中运行或部署到 Vercel。
+
+## 界面风格参考
+
+面板 UI 的配色与布局参考了 [cmliu/edgetunnel](https://github.com/cmliu/edgetunnel)（GPL-2.0）管理面板的视觉设计。`src/theme.css` 中的 edgetunnel 风格皮肤为独立重写的 CSS，未复制其源代码。
