@@ -1,5 +1,6 @@
 name: Auto preferred IPs (三网)
 
+# 无电脑时用这个：按国内公开测速源的顺序选取，不用 GitHub 所在地的延迟排名
 on:
   schedule:
     - cron: '0 */6 * * *'
@@ -14,14 +15,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Auto select & write
+      - name: Auto select & write (source rank)
         env:
           WORKER_HOST: ${{ secrets.WORKER_HOST }}
           UUID: ${{ secrets.UUID }}
           PANEL_URL: ${{ secrets.PANEL_URL }}
           PANEL_TOKEN: ${{ secrets.PANEL_TOKEN }}
-          PER_LINE: '6'
-          CONCURRENCY: '12'
+          PER_LINE: '5'
+          CONCURRENCY: '16'
           TIMEOUT_MS: '8000'
           MIN_OK: '3'
+          RANK_BY: source
         run: node scripts/auto-preferred.mjs
