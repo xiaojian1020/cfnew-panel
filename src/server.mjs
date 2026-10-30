@@ -305,9 +305,8 @@ export async function handlePanel(request) {
     if (subscription) return await engine.subscribe(new Request(workerUrl, { headers: request.headers }));
     const rendered = await engine.render(new Request(workerBase + '/' + uuid, { headers: request.headers }));
     const subParams = new URLSearchParams({ host: workerBase, uuid });
-    const workerSubUrl = workerBase.replace(/\/$/, '') + '/' + uuid + '/sub';
-    const context = { host: workerBase, uuid, apiBase: boundWorker ? '/' + uuid : '/worker-api/' + Buffer.from(workerBase).toString('base64url') + '/' + uuid, subPath: boundWorker ? '/' + uuid + '/sub' : '/sub?' + subParams, workerSubUrl, tokenRequired: Boolean(panelToken()), ...(boundWorker ? { panelPath: '/' + uuid } : {}), config, release: coreRelease(config) };
-    const boot = '<script>window.CFNEW=' + safeJson(context) + ';window.CFNEW.subUrl=location.origin+window.CFNEW.subPath;window.CFNEW.workerSubUrl=' + safeJson(workerSubUrl) + ';' + bridge + '</script>';
+    const context = { host: workerBase, uuid, apiBase: boundWorker ? '/' + uuid : '/worker-api/' + Buffer.from(workerBase).toString('base64url') + '/' + uuid, subPath: boundWorker ? '/' + uuid + '/sub' : '/sub?' + subParams, tokenRequired: Boolean(panelToken()), ...(boundWorker ? { panelPath: '/' + uuid } : {}), config, release: coreRelease(config) };
+    const boot = '<script>window.CFNEW=' + safeJson(context) + ';window.CFNEW.subUrl=location.origin+window.CFNEW.subPath;' + bridge + '</script>';
     let html = await rendered.text();
     html = html.replace('<head>', '<head>' + boot + theme);
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
