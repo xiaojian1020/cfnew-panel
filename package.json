@@ -8,7 +8,8 @@
     "start": "node src/server.mjs",
     "test": "CFNEW_TEST_CORE=./test/core-fixture.mjs node --test src/test/*.test.mjs",
     "build:vercel": "node src/tools/build-vercel.mjs",
-    "test:nodes": "node scripts/test-nodes.mjs"
+    "test:nodes": "node scripts/test-nodes.mjs",
+    "sync:preferred": "node scripts/sync-preferred.mjs"
   },
   "engines": {
     "node": "22.x"
