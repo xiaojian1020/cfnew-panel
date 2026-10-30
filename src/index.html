@@ -4,35 +4,48 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<title>CFnew 独立面板</title>
+<meta name="robots" content="noindex, nofollow">
+<title>连接控制台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body class="landing">
-<main>
-  <div class="header">
-    <h1 class="title">连接你的 Worker</h1>
-    <p class="subtitle">填写域名和 UUID 或自定义路径</p>
-  </div>
-  <div class="card">
-  <div class="brand">接入控制台</div>
-  <form action="/panel" method="get" id="connectForm">
-    <label for="host">Worker 域名</label>
-    <input type="text" id="host" name="host" placeholder="worker.example.com" required autocomplete="off" spellcheck="false" inputmode="url">
-    <label for="uuid">UUID 或自定义路径</label>
-    <input type="text" id="uuid" name="uuid" placeholder="填写 UUID，或 d 设置的路径" required autocomplete="off" spellcheck="false">
-    <label for="token">面板令牌（可选）</label>
-    <input type="password" id="token" name="token" placeholder="仅当服务器设置了 PANEL_TOKEN 时需要" autocomplete="off" spellcheck="false">
-    <label class="remember"><input id="remember" type="checkbox">在这台设备记住节点</label>
-    <div id="historyControls" class="history-row" hidden>
-      <select id="history" aria-label="已保存的节点"></select>
-      <button type="button" id="deleteNode" disabled>删除所选</button>
-      <button type="button" id="clearAll" hidden>清空全部</button>
+<main class="login-shell">
+  <div class="login-card">
+    <div class="login-icon" aria-hidden="true">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+        <path d="M12 3l7 3v5c0 4.5-2.8 7.6-7 9-4.2-1.4-7-4.5-7-9V6l7-3z" fill="white" fill-opacity="0.95"/>
+        <path d="M10.2 12.8l-1.7-1.7 1.1-1.1 0.6 0.6 2.7-2.7 1.1 1.1-3.8 3.8z" fill="#f6821f"/>
+      </svg>
     </div>
-    <small id="historyStatus" role="status" hidden></small>
-    <button type="submit" id="submitBtn">打开控制台</button>
-    <small>代理流量直接连接 Worker。订阅从本服务更新。</small>
-  </form>
+    <h1 class="login-title">连接控制台</h1>
+    <p class="login-sub">填写 Worker 域名和 UUID 或自定义路径</p>
+    <form action="/panel" method="get" id="connectForm" class="login-form">
+      <label class="field">
+        <span>Worker 域名</span>
+        <input type="text" id="host" name="host" placeholder="worker.example.com" required autocomplete="off" spellcheck="false" inputmode="url">
+      </label>
+      <label class="field">
+        <span>UUID 或自定义路径</span>
+        <input type="text" id="uuid" name="uuid" placeholder="填写 UUID，或 d 设置的路径" required autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field">
+        <span>面板令牌（可选）</span>
+        <input type="password" id="token" name="token" placeholder="仅当设置了 PANEL_TOKEN 时需要" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="remember"><input id="remember" type="checkbox">在这台设备记住节点</label>
+      <div id="historyControls" class="history-row" hidden>
+        <select id="history" aria-label="已保存的节点"></select>
+        <button type="button" id="deleteNode" class="btn-ghost" disabled>删除所选</button>
+        <button type="button" id="clearAll" class="btn-ghost" hidden>清空全部</button>
+      </div>
+      <small id="historyStatus" class="status" role="status" hidden></small>
+      <button type="submit" id="submitBtn" class="btn-primary">打开控制台</button>
+      <p class="login-foot">代理流量直连 Worker · 订阅由本面板生成</p>
+    </form>
   </div>
-  <small id="panelVersion">面板版本 __CFNEW_PANEL_VERSION__</small>
+  <small id="panelVersion" class="version">面板版本 __CFNEW_PANEL_VERSION__</small>
 </main>
 <script>
 (function () {
@@ -90,19 +103,16 @@
 
   renderHistory();
 
-  // 只有一条历史时自动回填，方便快速进入
   if (nodes.length === 1) {
     fillFrom(nodes[0]);
     historyInput.value = '0';
     deleteNode.disabled = false;
   }
 
-
   try {
     const savedToken = sessionStorage.getItem('cfnew-panel-token') || '';
     if (savedToken && tokenInput) tokenInput.value = savedToken;
   } catch {}
-
 
   historyInput.addEventListener('change', () => {
     deleteNode.disabled = historyInput.value === '';
@@ -151,7 +161,6 @@
     const uuid = uuidInput.value.trim();
     if (!host || !uuid) return;
 
-    // 防重复提交
     if (submitBtn.disabled) {
       event.preventDefault();
       return;
@@ -165,9 +174,14 @@
     } catch {}
 
     if (remember.checked) {
-      const node = { host, uuid };
-      nodes = [node, ...nodes.filter(item => item.host !== node.host || item.uuid !== node.uuid)].slice(0, 20);
-      saveNodes();
+      nodes = [{ host, uuid }, ...nodes.filter(node => !(node.host === host && node.uuid === uuid))].slice(0, 8);
+      if (!saveNodes()) {
+        event.preventDefault();
+        submitBtn.disabled = false;
+        submitBtn.textContent = '打开控制台';
+        historyStatus.textContent = '保存失败，浏览器暂时无法写入本地记录。';
+        historyStatus.hidden = false;
+      }
     }
   });
 })();
