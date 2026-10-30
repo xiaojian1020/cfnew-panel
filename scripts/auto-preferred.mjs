@@ -24,6 +24,9 @@
  *   MIN_OK        全局至少成功几个才写入，默认 3
  *   DRY_RUN       1=只测不写
  *   PORT          默认端口 443
+ *   RANK_BY       latency=按探测延迟排序（国内网络用）
+ *                 source=按数据源顺序+仅过滤可用（GitHub 自动跑推荐）
+ *   SKIP_PROBE    1=完全不探测，直接按来源列表写入（最快，略粗）
  *   CT_URLS / CU_URLS / CM_URLS  逗号分隔的候选源（覆盖默认）
  */
 
@@ -35,22 +38,25 @@ import { performance } from 'node:perf_hooks';
 const TLS_PORTS = new Set([443, 2053, 2083, 2087, 2096, 8443]);
 
 const DEFAULT_SOURCES = {
+  // 优先国内测速源顺序（列表越靠前越优先）
   ct: [
     'https://bestcf.pages.dev/wetest/ipv4.txt',
+    'https://bestcf.pages.dev/uouin/all.txt',
     'https://cf.090227.xyz/ct',
     'https://addressesapi.090227.xyz/ct',
   ],
   cu: [
     'https://bestcf.pages.dev/wetest/ipv4.txt',
+    'https://bestcf.pages.dev/uouin/all.txt',
     'https://cf.090227.xyz/cu',
     'https://addressesapi.090227.xyz/cu',
   ],
   cm: [
     'https://bestcf.pages.dev/wetest/ipv4.txt',
+    'https://bestcf.pages.dev/uouin/all.txt',
     'https://cf.090227.xyz/cmcc',
     'https://addressesapi.090227.xyz/cmcc',
   ],
-  // 合集兜底（分不出运营商时用）
   all: [
     'https://bestcf.pages.dev/uouin/all.txt',
     'https://bestcf.pages.dev/wetest/ipv4.txt',
@@ -355,30 +361,44 @@ async function main() {
   }
   console.log(`[auto] 候选合计 ${uniq.length}（电信源${ct.length} 联通源${cu.length} 移动源${cm.length}），开始探测…`);
 
-  const results = await mapPool(uniq, concurrency, async t => {
-    const r = await probeCf({ host: t.host, port: t.port, sni, timeout });
-    const row = { ...t, ...r };
-    console.log(`${row.ok ? 'OK ' : 'ERR'} ${hostPort(t)}  ${row.latency > 0 ? row.latency + 'ms' : '-'}  ${row.colo || '-'}  ${t.line}  ${row.error || ''}`);
-    return row;
-  });
+  const rankBy = (env('RANK_BY', 'source') || 'source').toLowerCase();
+  const skipProbe = env('SKIP_PROBE') === '1' || env('SKIP_PROBE').toLowerCase() === 'true';
+  console.log(`[auto] RANK_BY=${rankBy} SKIP_PROBE=${skipProbe}`);
+
+  let results;
+  if (skipProbe) {
+    results = uniq.map((t, index) => ({ ...t, ok: true, latency: index + 1, colo: '', error: '' }));
+  } else {
+    results = await mapPool(uniq, concurrency, async t => {
+      const r = await probeCf({ host: t.host, port: t.port, sni, timeout });
+      const row = { ...t, ...r };
+      console.log(`${row.ok ? 'OK ' : 'ERR'} ${hostPort(t)}  ${row.latency > 0 ? row.latency + 'ms' : '-'}  ${row.colo || '-'}  ${t.line}  ${row.error || ''}`);
+      return row;
+    });
+  }
 
   const ok = results.filter(r => r.ok);
-  const pick = line => ok.filter(r => r.line === line).sort((a, b) => a.latency - b.latency).slice(0, perLine);
+  // source: 保持候选原有顺序（国内源已按质量排过）；latency: 按本次探测延迟
+  const pick = line => {
+    const list = ok.filter(r => r.line === line);
+    if (rankBy === 'latency') list.sort((a, b) => a.latency - b.latency);
+    // source 模式：ok 已是探测过滤后的结果，顺序尽量跟随 uniq
+    return list.slice(0, perLine);
+  };
 
   let selected = [...pick('ct'), ...pick('cu'), ...pick('cm')];
 
-  // 某线一个都没有时，从全局 OK 里补
   if (selected.length < minOk) {
     const extra = ok
       .filter(r => !selected.some(s => s.host === r.host && s.port === r.port))
-      .sort((a, b) => a.latency - b.latency)
       .slice(0, Math.max(0, perLine * 3 - selected.length));
+    if (rankBy === 'latency') extra.sort((a, b) => a.latency - b.latency);
     selected = selected.concat(extra);
   }
 
-  console.log(`[auto] 探测成功 ${ok.length}/${results.length}，拟写入 ${selected.length} 条`);
-  for (const t of selected.sort((a, b) => a.latency - b.latency)) {
-    console.log(`  ${t.latency}ms  ${hostPort(t)}  ${t.line}  ${t.colo || ''}`);
+  console.log(`[auto] 可用 ${ok.length}/${results.length}，拟写入 ${selected.length} 条（排序=${rankBy}）`);
+  for (const t of selected) {
+    console.log(`  ${hostPort(t)}  ${t.line}  ${t.latency > 0 ? t.latency + 'ms' : ''}  ${t.colo || ''}`);
   }
 
   if (selected.length < minOk) {
