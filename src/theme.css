@@ -976,28 +976,3 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 #freeCpuHint { display: block; max-width: 72ch; color: var(--cp-text-dim); line-height: 1.6; font-size: .85rem; }
 
 
-/* landing: worker subscription preview */
-.landing .sub-preview {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255,255,255,.08);
-  display: grid;
-  gap: 8px;
-}
-.landing .sub-preview code {
-  display: block;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(0,0,0,.35);
-  border: 1px solid rgba(255,255,255,.08);
-  word-break: break-all;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--cp-cyan, #00f0ff);
-}
-.landing .sub-preview #copySubBtn {
-  width: auto;
-  min-height: 40px;
-  padding: 8px 14px;
-  justify-self: start;
-}
