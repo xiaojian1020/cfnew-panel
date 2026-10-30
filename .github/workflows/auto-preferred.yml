@@ -1,0 +1,27 @@
+name: Auto preferred IPs (三网)
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Auto select & write
+        env:
+          WORKER_HOST: ${{ secrets.WORKER_HOST }}
+          UUID: ${{ secrets.UUID }}
+          PANEL_URL: ${{ secrets.PANEL_URL }}
+          PANEL_TOKEN: ${{ secrets.PANEL_TOKEN }}
+          PER_LINE: '6'
+          CONCURRENCY: '12'
+          TIMEOUT_MS: '8000'
+          MIN_OK: '3'
+        run: node scripts/auto-preferred.mjs
