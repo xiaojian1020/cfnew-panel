@@ -2,6 +2,13 @@
 import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
 import { buildSingboxConfig, normalizeNodeNames } from './singbox.mjs';
+import {
+  isValidAddress as 是否有效地址,
+  normalizeNodeHost as 规范化节点主机,
+  processNodeAliasPart as 处理值节点别名部分,
+  getNodeAliasBase as 获取值节点别名基础,
+  createNodeNamer as 创建值节点命名器,
+} from './engine-nodes.mjs';
 export function createSubscriptionEngine(config, uuid) {
 const 基础64文本解码器 = new TextDecoder();
 
@@ -348,41 +355,7 @@ let 已解析代理5配置 = {};
 
 let 是否代理已启用 = false;
 
-function 是否有效地址(地址792) {
-  return isIP(地址792) !== 0;
-}
-
-function 规范化节点主机(主机786) {
-  return String(主机786 || '').trim().replace(/^\[([^\]]+)\]$/, '$1');
-}
-
-function 处理值节点别名部分(值785, 回退 = 'Node') {
-  let 文本784 = String(值785 || '').trim();
-  if (!文本784 || /^自定义优选-/i.test(文本784)) 文本784 = 回退;
-  文本784 = 文本784.replace(/^\[([^\]]+)\]$/, '$1').replace(/^https?:\/\//i, '').replace(/[/?#].*$/, '').replace(/\s+/g, '_');
-  return 文本784 || 回退;
-}
-
-function 获取值节点别名基础(项目783) {
-  const 主机782 = 规范化节点主机(项目783?.ip || 项目783?.domain || '');
-  if (主机782 && 主机782.includes(':') && /^[0-9a-fA-F:.]+$/.test(主机782)) {
-    return 处理值节点别名部分(项目783?.isp || 项目783?.name || '', 'IPv6优选');
-  }
-  if (主机782 && !是否有效地址(主机782)) return '优选域名';
-  const 本地值781 = 处理值节点别名部分(项目783?.isp || 项目783?.name || '', 'IPv4优选');
-  const 机房780 = 处理值节点别名部分(项目783?.colo || '', '');
-  return 机房780 ? `${本地值781}-${机房780}` : 本地值781;
-}
-
-function 创建值节点命名器(跳过编号779 = false) {
-  const 计数器组 = {};
-  return 项目778 => {
-    const 基础 = 获取值节点别名基础(项目778);
-    if (跳过编号779) return 基础;
-    计数器组[基础] = (计数器组[基础] || 0) + 1;
-    return `${基础}-${String(计数器组[基础]).padStart(2, '0')}`;
-  };
-}
+/* 节点命名：见 ./engine-nodes.mjs */
 
 function 规范化应用层协议协商(值777) {
   const 本地值776 = ['', 'h3', 'h2', 'http/1.1', 'h3,h2', 'h2,http/1.1', 'h3,h2,http/1.1'];
@@ -1998,6 +1971,11 @@ async function 处理订阅值(请求241, 用户240 = null) {
                     <button class="client-btn" id="jkClientBtn" style="${启用家宽链式 ? '' : 'display: none;'}" onclick="生成客户端链接('vg', '${翻译值.jkClient}')">${翻译值.jkClient}</button>
                 </div>
                 <div class="subscription-url" id="clientSubscriptionUrl"></div>
+                <div id="workerSubPanel" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(0,240,255,0.15);">
+                    <div style="color:#7aa9c4;font-size:0.9rem;margin-bottom:8px;">${是否值236 ? 'لینک مستقیم Worker' : 'Worker 订阅直链（小火箭等建议用这条，少经面板域名）'}</div>
+                    <div class="subscription-url" id="workerSubscriptionUrl" style="display:block;word-break:break-all;"></div>
+                    <button type="button" class="client-btn" id="copyWorkerSubBtn" style="margin-top:10px;" onclick="window.复制Worker订阅直链 && window.复制Worker订阅直链()">${是否值236 ? 'کپی لینک Worker' : '复制 Worker 直链'}</button>
+                </div>
             </div>
             <div class="card">
                     <h2 class="card-title">${翻译值.systemStatus}</h2>
@@ -2558,14 +2536,42 @@ function 尝试打开应用(方案网址20197, 回退回调, 超时20196) {
     }
   }, 超时20196);
 }
+function 复制Worker订阅直链() {
+  var 直链 = (window.CFNEW && (window.CFNEW.workerSubUrl || window.CFNEW.subUrl)) || '';
+  var 盒子 = document.getElementById('workerSubscriptionUrl');
+  if (盒子 && 直链) {
+    盒子.textContent = 直链;
+    盒子.style.display = 'block';
+  }
+  if (!直链) {
+    显示提示('${是否值236 ? 'لینک در دسترس نیست' : '暂无可用订阅链接'}', 'warn');
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(直链).then(function () {
+      显示提示('${是否值236 ? 'کپی شد' : 'Worker 直链已复制'}', 'success');
+    }).catch(function () {
+      显示提示('${是否值236 ? 'کپی نشد' : '复制失败，请长按链接手动复制'}', 'warn');
+    });
+  } else {
+    显示提示('${是否值236 ? 'کپی پشتیبانی نمی‌شود' : '请长按上方链接手动复制'}', 'warn');
+  }
+}
+window.复制Worker订阅直链 = 复制Worker订阅直链;
+if (document.getElementById('workerSubscriptionUrl') && window.CFNEW && window.CFNEW.workerSubUrl) {
+  document.getElementById('workerSubscriptionUrl').textContent = window.CFNEW.workerSubUrl;
+}
 function 生成客户端链接(客户端类型, 客户端名称) {
   var 当前网址20192 = window.location.href;
-  var 订阅网址20191 = window.CFNEW.subUrl;
+  var 面板订阅 = window.CFNEW.subUrl;
+  var 直链订阅 = window.CFNEW.workerSubUrl || 面板订阅;
+  var 订阅网址20191 = 面板订阅;
   var 方案网址 = '';
   var 显示名称 = 客户端名称 || '';
   var 最终网址 = 订阅网址20191;
   if (客户端类型 === atob('djJyYXk=')) {
-    最终网址 = 订阅网址20191;
+    // 通用 URI / 小火箭：优先 Worker 直链，避免面板域名重定向
+    最终网址 = 直链订阅;
     var 网址值20190 = document.getElementById("clientSubscriptionUrl");
     网址值20190.textContent = 最终网址;
     网址值20190.style.display = "block";
