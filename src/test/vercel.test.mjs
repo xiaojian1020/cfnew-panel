@@ -6,7 +6,7 @@ test('Vercel入口返回完整登录页与禁止缓存头，HEAD没有正文', a
   const request = method => new Request('https://panel.example/', { method });
   const response = await handleVercelRequest(request('GET'));
   assert.equal(response.status, 200);
-  assert.match(await response.text(), /连接你的 Worker/);
+  assert.match(await response.text(), /连接控制台/);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
   assert.equal(await (await handleVercelRequest(request('HEAD'))).text(), '');
