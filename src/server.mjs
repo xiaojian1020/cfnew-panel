@@ -24,6 +24,52 @@ function cacheSet(map, key, value) {
   map.set(key, value);
 }
 
+function panelToken() {
+  return String(process.env.PANEL_TOKEN || process.env.panel_token || '').trim();
+}
+
+function clientKey(request) {
+  const forwarded = String(request.headers.get('x-forwarded-for') || '').split(',')[0].trim();
+  const real = String(request.headers.get('x-real-ip') || '').trim();
+  return forwarded || real || 'local';
+}
+
+function readRequestToken(request, url) {
+  const header = String(request.headers.get('x-panel-token') || '').trim();
+  if (header) return header;
+  const auth = String(request.headers.get('authorization') || '');
+  if (/^Bearer\s+/i.test(auth)) return auth.replace(/^Bearer\s+/i, '').trim();
+  return String(url.searchParams.get('token') || '').trim();
+}
+
+function assertPanelToken(request, url) {
+  const expected = panelToken();
+  if (!expected) return;
+  if (readRequestToken(request, url) !== expected) {
+    throw Object.assign(new Error('需要有效的面板访问令牌（PANEL_TOKEN）'), { status: 401 });
+  }
+}
+
+const rateBuckets = new Map();
+const RATE_LIMIT_MAX = Math.max(1, Number(process.env.CFNEW_RATE_LIMIT || 60) || 60);
+const RATE_WINDOW_MS = 60_000;
+
+function assertRateLimit(request, bucketName) {
+  if (process.env.CFNEW_RATE_LIMIT === '0') return;
+  const key = bucketName + ':' + clientKey(request);
+  const now = Date.now();
+  let bucket = rateBuckets.get(key);
+  if (!bucket || bucket.reset <= now) {
+    bucket = { count: 0, reset: now + RATE_WINDOW_MS };
+    if (rateBuckets.size > 4096) rateBuckets.clear();
+    rateBuckets.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > RATE_LIMIT_MAX) {
+    throw Object.assign(new Error('请求过于频繁，请稍后再试'), { status: 429 });
+  }
+}
+
 async function authorizePreferred(workerBase, uuid) {
   workerBase = selectWorker(workerBase);
   const key = workerBase + '/' + uuid;
@@ -181,6 +227,22 @@ async function handleWorkerApi(request, workerBase, access, suffix) {
 
 export async function handlePanel(request) {
   const url = new URL(request.url);
+  const publicPath = url.pathname === '/health' || url.pathname === '/rules-license' || url.pathname === '/robots.txt';
+  if (!publicPath) {
+    try { assertPanelToken(request, url); }
+    catch (error) {
+      if (error.status === 401) {
+        if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/worker-api/')) {
+          return Response.json({ success: false, message: error.message }, { status: 401 });
+        }
+        return new Response(error.message, { status: 401, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      }
+      throw error;
+    }
+  }
+  if (url.pathname === '/robots.txt') {
+    return new Response('User-agent: *\nDisallow: /\n', { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' } });
+  }
   if (url.pathname.startsWith('/worker-api/')) {
     const match = url.pathname.match(/^\/worker-api\/([^/]+)\/([0-9a-f-]+)(\/.*)$/i);
     if (!match || !uuidPattern.test(match[2])) return Response.json({ success: false, message: '接口地址无效' }, { status: 400 });
@@ -196,6 +258,7 @@ export async function handlePanel(request) {
   if (['/api/preferred/probe', '/api/preferred/probe-batch', '/api/preferred/list'].includes(url.pathname)) {
     if (request.method !== 'POST') return Response.json({ message: '只支持 POST' }, { status: 405 });
     try {
+      assertRateLimit(request, 'preferred');
       const data = await request.json();
       const workerBase = selectWorker(data.host);
       const uuid = normalizeAccess(data.uuid);
@@ -215,6 +278,8 @@ export async function handlePanel(request) {
       ok: true,
       version: PANEL_VERSION,
       boundWorker: Boolean(bound),
+      tokenRequired: Boolean(panelToken()),
+      rateLimit: process.env.CFNEW_RATE_LIMIT === '0' ? 0 : RATE_LIMIT_MAX,
     });
   }
   if (url.pathname === '/rules-license') return new Response(rulesLicense, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' } });
@@ -240,8 +305,9 @@ export async function handlePanel(request) {
     if (subscription) return await engine.subscribe(new Request(workerUrl, { headers: request.headers }));
     const rendered = await engine.render(new Request(workerBase + '/' + uuid, { headers: request.headers }));
     const subParams = new URLSearchParams({ host: workerBase, uuid });
-    const context = { host: workerBase, uuid, apiBase: boundWorker ? '/' + uuid : '/worker-api/' + Buffer.from(workerBase).toString('base64url') + '/' + uuid, subPath: boundWorker ? '/' + uuid + '/sub' : '/sub?' + subParams, ...(boundWorker ? { panelPath: '/' + uuid } : {}), config, release: coreRelease(config) };
-    const boot = '<script>window.CFNEW=' + safeJson(context) + ';window.CFNEW.subUrl=location.origin+window.CFNEW.subPath;' + bridge + '</script>';
+    const workerSubUrl = workerBase.replace(/\/$/, '') + '/' + uuid + '/sub';
+    const context = { host: workerBase, uuid, apiBase: boundWorker ? '/' + uuid : '/worker-api/' + Buffer.from(workerBase).toString('base64url') + '/' + uuid, subPath: boundWorker ? '/' + uuid + '/sub' : '/sub?' + subParams, workerSubUrl, tokenRequired: Boolean(panelToken()), ...(boundWorker ? { panelPath: '/' + uuid } : {}), config, release: coreRelease(config) };
+    const boot = '<script>window.CFNEW=' + safeJson(context) + ';window.CFNEW.subUrl=location.origin+window.CFNEW.subPath;window.CFNEW.workerSubUrl=' + safeJson(workerSubUrl) + ';' + bridge + '</script>';
     let html = await rendered.text();
     html = html.replace('<head>', '<head>' + boot + theme);
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
