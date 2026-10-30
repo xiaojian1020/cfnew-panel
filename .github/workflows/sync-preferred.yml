@@ -1,0 +1,41 @@
+# 每 6 小时自动优选 IP 并写入 Worker 订阅配置（yx）
+# 请在仓库 Settings → Secrets and variables → Actions 中配置:
+#   WORKER_HOST   必填，如 xxx.workers.dev
+#   UUID          必填
+#   PANEL_URL     可选，经面板写入时填
+#   PANEL_TOKEN   可选
+#   CANDIDATES_URL 可选，候选列表 URL；不填则使用仓库内 candidates.txt
+
+name: Sync preferred IPs
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run sync
+        env:
+          WORKER_HOST: ${{ secrets.WORKER_HOST }}
+          UUID: ${{ secrets.UUID }}
+          PANEL_URL: ${{ secrets.PANEL_URL }}
+          PANEL_TOKEN: ${{ secrets.PANEL_TOKEN }}
+          CANDIDATES_URL: ${{ secrets.CANDIDATES_URL }}
+          CANDIDATES_FILE: candidates.txt
+          TOP_N: '15'
+          CONCURRENCY: '10'
+          TIMEOUT_MS: '8000'
+          MIN_OK: '3'
+        run: node scripts/sync-preferred.mjs
