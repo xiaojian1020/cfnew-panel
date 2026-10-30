@@ -1971,11 +1971,6 @@ async function 处理订阅值(请求241, 用户240 = null) {
                     <button class="client-btn" id="jkClientBtn" style="${启用家宽链式 ? '' : 'display: none;'}" onclick="生成客户端链接('vg', '${翻译值.jkClient}')">${翻译值.jkClient}</button>
                 </div>
                 <div class="subscription-url" id="clientSubscriptionUrl"></div>
-                <div id="workerSubPanel" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(0,240,255,0.15);">
-                    <div style="color:#7aa9c4;font-size:0.9rem;margin-bottom:8px;">${是否值236 ? 'لینک مستقیم Worker' : 'Worker 订阅直链（小火箭等建议用这条，少经面板域名）'}</div>
-                    <div class="subscription-url" id="workerSubscriptionUrl" style="display:block;word-break:break-all;"></div>
-                    <button type="button" class="client-btn" id="copyWorkerSubBtn" style="margin-top:10px;" onclick="window.复制Worker订阅直链 && window.复制Worker订阅直链()">${是否值236 ? 'کپی لینک Worker' : '复制 Worker 直链'}</button>
-                </div>
             </div>
             <div class="card">
                     <h2 class="card-title">${翻译值.systemStatus}</h2>
@@ -2536,42 +2531,14 @@ function 尝试打开应用(方案网址20197, 回退回调, 超时20196) {
     }
   }, 超时20196);
 }
-function 复制Worker订阅直链() {
-  var 直链 = (window.CFNEW && (window.CFNEW.workerSubUrl || window.CFNEW.subUrl)) || '';
-  var 盒子 = document.getElementById('workerSubscriptionUrl');
-  if (盒子 && 直链) {
-    盒子.textContent = 直链;
-    盒子.style.display = 'block';
-  }
-  if (!直链) {
-    显示提示('${是否值236 ? 'لینک در دسترس نیست' : '暂无可用订阅链接'}', 'warn');
-    return;
-  }
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(直链).then(function () {
-      显示提示('${是否值236 ? 'کپی شد' : 'Worker 直链已复制'}', 'success');
-    }).catch(function () {
-      显示提示('${是否值236 ? 'کپی نشد' : '复制失败，请长按链接手动复制'}', 'warn');
-    });
-  } else {
-    显示提示('${是否值236 ? 'کپی پشتیبانی نمی‌شود' : '请长按上方链接手动复制'}', 'warn');
-  }
-}
-window.复制Worker订阅直链 = 复制Worker订阅直链;
-if (document.getElementById('workerSubscriptionUrl') && window.CFNEW && window.CFNEW.workerSubUrl) {
-  document.getElementById('workerSubscriptionUrl').textContent = window.CFNEW.workerSubUrl;
-}
 function 生成客户端链接(客户端类型, 客户端名称) {
   var 当前网址20192 = window.location.href;
-  var 面板订阅 = window.CFNEW.subUrl;
-  var 直链订阅 = window.CFNEW.workerSubUrl || 面板订阅;
-  var 订阅网址20191 = 面板订阅;
+  var 订阅网址20191 = window.CFNEW.subUrl;
   var 方案网址 = '';
   var 显示名称 = 客户端名称 || '';
   var 最终网址 = 订阅网址20191;
   if (客户端类型 === atob('djJyYXk=')) {
-    // 通用 URI / 小火箭：优先 Worker 直链，避免面板域名重定向
-    最终网址 = 直链订阅;
+    最终网址 = 订阅网址20191;
     var 网址值20190 = document.getElementById("clientSubscriptionUrl");
     网址值20190.textContent = 最终网址;
     网址值20190.style.display = "block";
