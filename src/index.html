@@ -5,16 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>CFnew 独立面板</title>
-<script>
-  window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
-</script>
-<script defer src="/_vercel/speed-insights/script.js"></script>
 </head>
 <body class="landing">
 <main>
   <div class="header">
     <h1 class="title">连接你的 Worker</h1>
-    <p class="subtitle">填写域名和 UUID 或自定义路径</p>
+    <p class="subtitle">填写域名和 UUID 或自定义路径；订阅优先用 Worker 直链更稳</p>
   </div>
   <div class="card">
   <div class="brand">接入控制台</div>
@@ -23,6 +19,8 @@
     <input type="text" id="host" name="host" placeholder="worker.example.com" required autocomplete="off" spellcheck="false" inputmode="url">
     <label for="uuid">UUID 或自定义路径</label>
     <input type="text" id="uuid" name="uuid" placeholder="填写 UUID，或 d 设置的路径" required autocomplete="off" spellcheck="false">
+    <label for="token">面板令牌（可选）</label>
+    <input type="password" id="token" name="token" placeholder="仅当服务器设置了 PANEL_TOKEN 时需要" autocomplete="off" spellcheck="false">
     <label class="remember"><input id="remember" type="checkbox">在这台设备记住节点</label>
     <div id="historyControls" class="history-row" hidden>
       <select id="history" aria-label="已保存的节点"></select>
@@ -31,7 +29,13 @@
     </div>
     <small id="historyStatus" role="status" hidden></small>
     <button type="submit" id="submitBtn">打开控制台</button>
-    <small>代理流量直接连接 Worker。订阅从本服务更新。</small>
+    <small>代理流量直接连接 Worker。订阅推荐使用下方 Worker 直链，避免面板域名跳转问题。</small>
+    <div id="subPreview" class="sub-preview" hidden>
+      <label>Worker 订阅直链</label>
+      <code id="subPreviewUrl"></code>
+      <button type="button" id="copySubBtn">复制直链</button>
+      <small id="copySubStatus" role="status" hidden></small>
+    </div>
   </form>
   </div>
   <small id="panelVersion">面板版本 __CFNEW_PANEL_VERSION__</small>
@@ -48,8 +52,46 @@
   const remember = document.getElementById('remember');
   const form = document.getElementById('connectForm');
   const submitBtn = document.getElementById('submitBtn');
+  const subPreview = document.getElementById('subPreview');
+  const subPreviewUrl = document.getElementById('subPreviewUrl');
+  const copySubBtn = document.getElementById('copySubBtn');
+  const copySubStatus = document.getElementById('copySubStatus');
+  const tokenInput = document.getElementById('token');
   const STORAGE_KEY = 'cfnew-panel-nodes';
   let nodes = [];
+
+  function workerSubLink() {
+    let host = hostInput.value.trim().replace(/^https?:\/\//i, '').replace(/\/$/, '');
+    const id = uuidInput.value.trim().replace(/^\/+|\/+$/g, '');
+    if (!host || !id) return '';
+    return 'https://' + host + '/' + id + '/sub';
+  }
+
+  function refreshSubPreview() {
+    const link = workerSubLink();
+    if (!link) {
+      subPreview.hidden = true;
+      return;
+    }
+    subPreviewUrl.textContent = link;
+    subPreview.hidden = false;
+  }
+
+  hostInput.addEventListener('input', refreshSubPreview);
+  uuidInput.addEventListener('input', refreshSubPreview);
+
+  copySubBtn.addEventListener('click', async () => {
+    const link = workerSubLink();
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      copySubStatus.textContent = '已复制 Worker 订阅直链，可粘贴到小火箭等客户端';
+      copySubStatus.hidden = false;
+    } catch {
+      copySubStatus.textContent = '复制失败，请长按链接手动选择复制';
+      copySubStatus.hidden = false;
+    }
+  });
 
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
@@ -87,6 +129,7 @@
     hostInput.value = node.host;
     uuidInput.value = node.uuid;
     historyStatus.hidden = true;
+    refreshSubPreview();
   }
 
   renderHistory();
@@ -97,6 +140,13 @@
     historyInput.value = '0';
     deleteNode.disabled = false;
   }
+  refreshSubPreview();
+
+  try {
+    const savedToken = sessionStorage.getItem('cfnew-panel-token') || '';
+    if (savedToken && tokenInput) tokenInput.value = savedToken;
+  } catch {}
+
 
   historyInput.addEventListener('change', () => {
     deleteNode.disabled = historyInput.value === '';
@@ -152,6 +202,11 @@
     }
     submitBtn.disabled = true;
     submitBtn.textContent = '正在打开…';
+    try {
+      const token = tokenInput && tokenInput.value.trim();
+      if (token) sessionStorage.setItem('cfnew-panel-token', token);
+      else sessionStorage.removeItem('cfnew-panel-token');
+    } catch {}
 
     if (remember.checked) {
       const node = { host, uuid };
