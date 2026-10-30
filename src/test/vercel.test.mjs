@@ -30,7 +30,10 @@ test('Vercel入口保留健康检查和404，不把运行文件当静态资源�
   assert.equal(health.ok, true);
   assert.equal(typeof health.version, 'string');
   assert.equal(typeof health.boundWorker, 'boolean');
+  assert.equal(typeof health.tokenRequired, 'boolean');
+  assert.equal(typeof health.rateLimit, 'number');
   assert.equal((await handleVercelRequest(new Request('https://panel.example/health'))).headers.get('x-frame-options'), 'DENY');
+  assert.equal((await handleVercelRequest(new Request('https://panel.example/robots.txt'))).status, 200);
   for (const path of ['/server.mjs', '/api/index.mjs', '/package.json', '/.env']) {
     assert.equal((await handleVercelRequest(new Request('https://panel.example' + path))).status, 404, path);
   }
