@@ -6,9 +6,6 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow">
 <title>连接控制台</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body class="landing">
 <main class="login-shell">
@@ -24,23 +21,28 @@
     <form action="/panel" method="get" id="connectForm" class="login-form">
       <label class="field">
         <span>Worker 域名</span>
-        <input type="text" id="host" name="host" placeholder="worker.example.com" required autocomplete="off" spellcheck="false" inputmode="url">
+        <input type="text" id="host" name="host" placeholder="worker.example.com" required autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url" aria-describedby="hostHint">
       </label>
+      <small id="hostHint" class="field-hint">仅填写 HTTPS 域名，不带路径；可省略 https://。</small>
       <label class="field">
         <span>UUID 或自定义路径</span>
-        <input type="text" id="uuid" name="uuid" placeholder="填写 UUID，或 d 设置的路径" required autocomplete="off" spellcheck="false">
+        <input type="text" id="uuid" name="uuid" placeholder="填写 UUID，或 d 设置的路径" required autocomplete="off" autocapitalize="none" spellcheck="false">
       </label>
-      <label class="field">
-        <span>面板令牌（可选）</span>
-        <input type="password" id="token" name="token" placeholder="仅当设置了 PANEL_TOKEN 时需要" autocomplete="off" spellcheck="false">
-      </label>
-      <label class="remember"><input id="remember" type="checkbox">在这台设备记住节点</label>
+      <details id="advancedConnection">
+        <summary>高级连接选项</summary>
+        <label class="field">
+          <span>面板令牌（可选）</span>
+          <input type="password" id="token" name="token" placeholder="仅当设置了 PANEL_TOKEN 时需要" autocomplete="off" autocapitalize="none" spellcheck="false">
+        </label>
+      </details>
+      <label class="remember"><input id="remember" type="checkbox" aria-describedby="rememberHint">在这台设备记住节点</label>
+      <small id="rememberHint" class="field-hint">勾选后将域名及 UUID／访问路径保存在本浏览器，请勿在公用设备开启。</small>
       <div id="historyControls" class="history-row" hidden>
         <select id="history" aria-label="已保存的节点"></select>
         <button type="button" id="deleteNode" class="btn-ghost" disabled>删除所选</button>
         <button type="button" id="clearAll" class="btn-ghost" hidden>清空全部</button>
       </div>
-      <small id="historyStatus" class="status" role="status" hidden></small>
+      <small id="historyStatus" class="status" role="status" aria-live="polite" hidden></small>
       <button type="submit" id="submitBtn" class="btn-primary">打开控制台</button>
       <p class="login-foot">代理流量直连 Worker · 订阅由本面板生成</p>
     </form>
@@ -49,44 +51,53 @@
 </main>
 <script>
 (function () {
-  const historyInput = document.getElementById('history');
-  const historyControls = document.getElementById('historyControls');
-  const deleteNode = document.getElementById('deleteNode');
-  const clearAll = document.getElementById('clearAll');
-  const historyStatus = document.getElementById('historyStatus');
-  const hostInput = document.getElementById('host');
-  const uuidInput = document.getElementById('uuid');
-  const remember = document.getElementById('remember');
-  const form = document.getElementById('connectForm');
-  const submitBtn = document.getElementById('submitBtn');
-  const tokenInput = document.getElementById('token');
+  const byId = id => document.getElementById(id);
+  const historyInput = byId('history');
+  const historyControls = byId('historyControls');
+  const deleteNode = byId('deleteNode');
+  const clearAll = byId('clearAll');
+  const historyStatus = byId('historyStatus');
+  const hostInput = byId('host');
+  const uuidInput = byId('uuid');
+  const remember = byId('remember');
+  const form = byId('connectForm');
+  const submitBtn = byId('submitBtn');
+  const tokenInput = byId('token');
   const STORAGE_KEY = 'cfnew-panel-nodes';
   let nodes = [];
-
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    if (Array.isArray(saved)) {
-      nodes = saved.filter(node => node && typeof node.host === 'string' && typeof node.uuid === 'string');
-    }
+    if (Array.isArray(saved)) nodes = saved.filter(node => node && typeof node.host === 'string' && typeof node.uuid === 'string' && node.host.trim() && node.uuid.trim()).slice(0, 8);
   } catch {}
-
+  function showStatus(message) {
+    historyStatus.textContent = message;
+    historyStatus.hidden = false;
+  }
+  function resetPending() {
+    submitBtn.disabled = false;
+    submitBtn.textContent = '打开控制台';
+    form.removeAttribute('aria-busy');
+  }
+  window.addEventListener('pageshow', resetPending);
   function shortLabel(node) {
     const host = node.host.replace(/^https?:\/\//i, '').replace(/\/$/, '');
-    const id = node.uuid;
-    if (/^[0-9a-f-]{36}$/i.test(id)) return host + ' · ' + id.slice(0, 8);
-    return host + ' · /' + id.slice(0, 16) + (id.length > 16 ? '…' : '');
+    if (/^[0-9a-f-]{36}$/i.test(node.uuid)) return host + ' · ' + node.uuid.slice(0, 8);
+    return host + ' · /' + node.uuid.slice(0, 16) + (node.uuid.length > 16 ? '…' : '');
   }
-
-  function saveNodes() {
+  // Publish in-memory state only after the browser persists the change.
+  function saveNodes(next) {
     try {
-      if (nodes.length) localStorage.setItem(STORAGE_KEY, JSON.stringify(nodes));
+      if (next.length) localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       else localStorage.removeItem(STORAGE_KEY);
+      nodes = next;
       return true;
-    } catch {
-      return false;
-    }
+    } catch { return false; }
   }
-
+  function selectedIndex() {
+    if (historyInput.value === '') return -1;
+    const index = Number(historyInput.value);
+    return Number.isInteger(index) && index >= 0 && index < nodes.length ? index : -1;
+  }
   function renderHistory() {
     historyInput.replaceChildren(new Option('选择已保存的节点', ''));
     nodes.forEach((node, index) => historyInput.add(new Option(shortLabel(node), String(index))));
@@ -94,95 +105,81 @@
     clearAll.hidden = nodes.length < 2;
     deleteNode.disabled = true;
   }
-
   function fillFrom(node) {
     hostInput.value = node.host;
     uuidInput.value = node.uuid;
+    hostInput.setCustomValidity('');
+    uuidInput.setCustomValidity('');
     historyStatus.hidden = true;
   }
-
   renderHistory();
-
   if (nodes.length === 1) {
-    fillFrom(nodes[0]);
-    historyInput.value = '0';
-    deleteNode.disabled = false;
+    fillFrom(nodes[0]); historyInput.value = '0'; deleteNode.disabled = false;
   }
-
   try {
     const savedToken = sessionStorage.getItem('cfnew-panel-token') || '';
-    if (savedToken && tokenInput) tokenInput.value = savedToken;
+    if (savedToken) { tokenInput.value = savedToken; byId('advancedConnection').open = true; }
   } catch {}
-
-  historyInput.addEventListener('change', () => {
-    deleteNode.disabled = historyInput.value === '';
-    if (deleteNode.disabled) return;
-    fillFrom(nodes[Number(historyInput.value)]);
+  for (const input of [hostInput, uuidInput]) input.addEventListener('input', () => {
+    input.setCustomValidity('');
+    historyStatus.hidden = true;
   });
-
+  historyInput.addEventListener('change', () => {
+    const index = selectedIndex();
+    deleteNode.disabled = index < 0;
+    if (index >= 0) fillFrom(nodes[index]);
+  });
   deleteNode.addEventListener('click', () => {
-    if (historyInput.value === '') return;
-    const index = Number(historyInput.value);
+    const index = selectedIndex();
+    if (index < 0) return;
     const node = nodes[index];
-    nodes = nodes.filter((_, position) => position !== index);
-    if (!saveNodes()) {
-      historyStatus.textContent = '删除失败，浏览器暂时无法保存本地记录。';
-      historyStatus.hidden = false;
-      return;
+    if (!saveNodes(nodes.filter((_, position) => position !== index))) {
+      showStatus('删除失败，浏览器暂时无法保存本地记录；原记录未改变。'); return;
     }
     if (hostInput.value === node.host && uuidInput.value === node.uuid) {
-      hostInput.value = '';
-      uuidInput.value = '';
+      hostInput.value = ''; uuidInput.value = '';
     }
     remember.checked = false;
     renderHistory();
-    historyStatus.textContent = '已删除这台设备上的记录，Worker 配置不受影响。';
-    historyStatus.hidden = false;
+    showStatus('已删除这台设备上的记录，Worker 配置不受影响。');
   });
-
   clearAll.addEventListener('click', () => {
     if (!nodes.length || !confirm('确定清空本设备上保存的全部节点记录？')) return;
-    nodes = [];
-    if (!saveNodes()) {
-      historyStatus.textContent = '清空失败，浏览器暂时无法保存本地记录。';
-      historyStatus.hidden = false;
-      return;
+    if (!saveNodes([])) {
+      showStatus('清空失败，浏览器暂时无法保存本地记录；原记录未改变。'); return;
     }
-    hostInput.value = '';
-    uuidInput.value = '';
-    remember.checked = false;
+    hostInput.value = ''; uuidInput.value = ''; remember.checked = false;
     renderHistory();
-    historyStatus.textContent = '已清空本设备全部记录，Worker 配置不受影响。';
-    historyStatus.hidden = false;
+    showStatus('已清空本设备全部记录，Worker 配置不受影响。');
   });
-
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', event => {
+    if (submitBtn.disabled) { event.preventDefault(); return; }
     const host = hostInput.value.trim();
     const uuid = uuidInput.value.trim();
-    if (!host || !uuid) return;
-
-    if (submitBtn.disabled) {
-      event.preventDefault();
-      return;
-    }
-    submitBtn.disabled = true;
-    submitBtn.textContent = '正在打开…';
+    hostInput.setCustomValidity(''); uuidInput.setCustomValidity('');
     try {
-      const token = tokenInput && tokenInput.value.trim();
+      const url = new URL(/^https?:\/\//i.test(host) ? host : 'https://' + host);
+      if (!host || url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/' || (url.port && url.port !== '443')) throw new Error();
+    } catch { hostInput.setCustomValidity('请输入 HTTPS Worker 域名，不带路径、查询参数或登录信息。'); }
+    if (!uuid) uuidInput.setCustomValidity('请填写 UUID 或自定义路径。');
+    if (!form.reportValidity()) { event.preventDefault(); return; }
+    hostInput.value = host; uuidInput.value = uuid;
+    if (remember.checked) {
+      const next = [{ host, uuid }, ...nodes.filter(node => !(node.host === host && node.uuid === uuid))].slice(0, 8);
+      if (!saveNodes(next)) {
+        event.preventDefault(); resetPending();
+        showStatus('保存失败，浏览器暂时无法写入本地记录。取消勾选“记住节点”后可继续连接。'); return;
+      }
+    }
+    try {
+      const token = tokenInput.value.trim();
+      tokenInput.value = token;
       if (token) sessionStorage.setItem('cfnew-panel-token', token);
       else sessionStorage.removeItem('cfnew-panel-token');
     } catch {}
-
-    if (remember.checked) {
-      nodes = [{ host, uuid }, ...nodes.filter(node => !(node.host === host && node.uuid === uuid))].slice(0, 8);
-      if (!saveNodes()) {
-        event.preventDefault();
-        submitBtn.disabled = false;
-        submitBtn.textContent = '打开控制台';
-        historyStatus.textContent = '保存失败，浏览器暂时无法写入本地记录。';
-        historyStatus.hidden = false;
-      }
-    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = '正在打开…';
+    form.setAttribute('aria-busy', 'true');
   });
 })();
 </script>
