@@ -244,12 +244,12 @@ function hostPort(t) {
 }
 
 function formatYx(items) {
-  const lineName = { ct: '电信', cu: '联通', cm: '移动', all: '优选' };
+  // 小健优选-DX/LT/YD（电信/联通/移动）
+  const lineTag = { ct: 'DX', cu: 'LT', cm: 'YD', all: 'YX' };
   return items
     .map(t => {
-      const tag = lineName[t.line] || '优选';
-      const name = t.colo ? `${tag}-${t.colo}` : tag;
-      return `${hostPort(t)}#${name}`;
+      const tag = lineTag[t.line] || 'YX';
+      return `${hostPort(t)}#小健优选-${tag}`;
     })
     .join(',');
 }
