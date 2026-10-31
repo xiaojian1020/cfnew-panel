@@ -17,9 +17,7 @@ const LIST_CACHE_TTL = 60000;
 const LIST_CACHE_MAX = 64;
 const listInflight = new Map();
 
-const PROBE_CONCURRENCY = 6;
-let probeActive = 0;
-const probeWaiters = [];
+const probeLimiter = createProbeLimiter();
 
 const probeCache = new Map();
 const PROBE_SUCCESS_TTL = 45000;
@@ -167,18 +165,41 @@ export function normalizePreferredList(text, defaultPort = '443') {
   return unique.join('\n');
 }
 
-function acquireProbeSlot() {
-  if (probeActive < PROBE_CONCURRENCY) {
-    probeActive++;
-    return Promise.resolve();
+export function createProbeLimiter({ concurrency = 6, maxQueue = 120, queueTimeoutMs = 15000 } = {}) {
+  if (!Number.isInteger(concurrency) || concurrency < 1 || !Number.isInteger(maxQueue) || maxQueue < 0 || !Number.isFinite(queueTimeoutMs) || queueTimeoutMs <= 0) throw new TypeError('Invalid probe limiter settings');
+  let active = 0;
+  const waiters = [];
+  const failure = (message, status) => Object.assign(new Error(message), { status });
+  function acquire(signal) {
+    if (signal?.aborted) return Promise.reject(failure('检测已取消', 499));
+    if (active < concurrency) { active++; return Promise.resolve(); }
+    if (waiters.length >= maxQueue) return Promise.reject(failure('检测队列已满，请稍后重试', 429));
+    return new Promise((resolve, reject) => {
+      const entry = { grant: null };
+      let settled = false;
+      let timer;
+      const cleanup = () => { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); };
+      const fail = error => {
+        if (settled) return;
+        settled = true;
+        const index = waiters.indexOf(entry);
+        if (index >= 0) waiters.splice(index, 1);
+        cleanup(); reject(error);
+      };
+      const onAbort = () => fail(failure('检测已取消', 499));
+      entry.grant = () => { if (settled) return; settled = true; cleanup(); resolve(); };
+      waiters.push(entry);
+      timer = setTimeout(() => fail(failure('检测排队超时，请稍后重试', 503)), queueTimeoutMs);
+      signal?.addEventListener('abort', onAbort, { once: true });
+      if (signal?.aborted) onAbort();
+    });
   }
-  return new Promise(resolve => probeWaiters.push(resolve));
-}
-
-function releaseProbeSlot() {
-  const next = probeWaiters.shift();
-  if (next) next();
-  else probeActive = Math.max(0, probeActive - 1);
+  function release() {
+    const next = waiters.shift();
+    if (next) next.grant();
+    else active = Math.max(0, active - 1);
+  }
+  return { acquire, release, get active() { return active; }, get queued() { return waiters.length; } };
 }
 
 export async function fetchPreferredList(value, signal) {
@@ -226,7 +247,7 @@ export async function probePreferred(workerBase, address, port, signal) {
   if (pending) return pending;
 
   pending = (async () => {
-    await acquireProbeSlot();
+    await probeLimiter.acquire(signal);
     try {
       if (signal?.aborted) throw new Error('检测已取消');
       // 双检缓存：排队期间可能已被其他请求写入
@@ -259,7 +280,7 @@ export async function probePreferred(workerBase, address, port, signal) {
       cachePut(probeCache, key, { expires: Date.now() + ttl, result }, PROBE_CACHE_MAX);
       return result;
     } finally {
-      releaseProbeSlot();
+      probeLimiter.release();
     }
   })().finally(() => {
     if (probeInflight.get(key) === pending) probeInflight.delete(key);

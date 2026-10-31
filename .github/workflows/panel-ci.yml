@@ -1,0 +1,41 @@
+name: Panel CI
+
+on:
+  push:
+    branches: [main, 'fix/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: panel-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run all panel tests
+        run: npm test
+      - name: Build isolated Vercel package
+        shell: bash
+        run: |
+          build_dir="$(mktemp -d "$RUNNER_TEMP/cfnew-vercel.XXXXXX")"
+          echo "CFNEW_BUILD_DIR=$build_dir" >> "$GITHUB_ENV"
+          npm run build:vercel -- "$build_dir"
+      - name: Smoke test packaged Vercel handler
+        run: node scripts/check-vercel-build.mjs "$CFNEW_BUILD_DIR"
