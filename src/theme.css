@@ -404,36 +404,71 @@ input[type="checkbox"], .check-input {
   color: #b42318;
 }
 
-/* Toasts */
+/* Toasts — compact iOS style */
 .cp-toast-stack {
   position: fixed;
-  top: 14px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
   width: min(420px, calc(100vw - 24px));
   pointer-events: none;
 }
 .cp-toast {
   pointer-events: auto;
-  background: rgba(255,255,255,0.6);
-  border: 1px solid rgba(255,255,255,0.8);
-  border-radius: 16px;
-  box-shadow: var(--shadow-soft);
-  padding: 12px 14px;
+  width: 100%;
   display: flex;
+  align-items: center;
   gap: 10px;
-  align-items: flex-start;
-  backdrop-filter: blur(20px) saturate(170%);
-  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  opacity: 0;
+  transform: translateY(-10px) scale(0.98);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  cursor: pointer;
 }
-.cp-toast-success { border-left: 4px solid var(--success); }
-.cp-toast-warn { border-left: 4px solid var(--accent); }
-.cp-toast-err { border-left: 4px solid var(--danger); }
-.cp-toast-msg { font-size: 0.88rem; color: var(--text); line-height: 1.4; }
+.cp-toast.cp-show { opacity: 1; transform: translateY(0) scale(1); }
+.cp-toast.cp-hide { opacity: 0; transform: translateY(-8px) scale(0.98); }
+.cp-toast-icon {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  background: #30d158;
+}
+.cp-toast-info .cp-toast-icon { background: #0a84ff; }
+.cp-toast-warn .cp-toast-icon { background: #ff9f0a; }
+.cp-toast-error .cp-toast-icon,
+.cp-toast-err .cp-toast-icon { background: #ff453a; }
+.cp-toast-body { flex: 1; min-width: 0; }
+.cp-toast-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+.cp-toast-msg {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.35;
+  word-break: break-word;
+}
 
 /* Landing */
 body.landing {
