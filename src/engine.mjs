@@ -1932,12 +1932,6 @@ async function 处理订阅值(请求241, 用户240 = null) {
 
     </head>
     <body>
-            <div class="cp-lang-wrapper">
-                <select id="languageSelector" onchange="切换语言(this.value)" aria-label="Language">
-                    <option value="zh" ${!是否值236 ? 'selected' : ''}>🇨🇳 中文</option>
-                    <option value="fa" ${是否值236 ? 'selected' : ''}>🇮🇷 فارسی</option>
-                </select>
-            </div>
         <div class="container">
             <div class="header">
                     <h1 class="title cp-glitch" data-text="${翻译值.title}">${翻译值.title}</h1>
