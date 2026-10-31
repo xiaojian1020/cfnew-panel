@@ -1610,10 +1610,10 @@ async function 处理订阅值(请求241, 用户240 = null) {
     zh: {
       title: 解码64('6K6i6ZiF5Lit5b+D'),
       subtitle: '多客户端支持 • 智能优选 • 一键生成',
-      selectClient: '📱 选择客户端',
-      systemStatus: '🌍 系统状态',
-      configManagement: '⚙️ 配置管理',
-      relatedLinks: '🔗 相关链接',
+      selectClient: '[ 选择客户端 ]',
+      systemStatus: '[ 系统状态 ]',
+      configManagement: '[ 配置管理 ]',
+      relatedLinks: '[ 相关链接 ]',
       checking: '检测中...',
       workerRegion: 'Worker地区: ',
       detectionMethod: '检测方式: ',
@@ -1767,10 +1767,10 @@ async function 处理订阅值(请求241, 用户240 = null) {
     fa: {
       title: 'مرکز اشتراک',
       subtitle: 'پشتیبانی چند کلاینت • انتخاب هوشمند • تولید یک کلیکی',
-      selectClient: '📱 انتخاب کلاینت',
-      systemStatus: '🌍 وضعیت سیستم',
-      configManagement: '⚙️ مدیریت تنظیمات',
-      relatedLinks: '🔗 لینک‌های مرتبط',
+      selectClient: '[ انتخاب کلاینت ]',
+      systemStatus: '[ وضعیت سیستم ]',
+      configManagement: '[ مدیریت تنظیمات ]',
+      relatedLinks: '[ لینک‌های مرتبط ]',
       checking: 'در حال بررسی...',
       workerRegion: 'منطقه Worker: ',
       detectionMethod: 'روش تشخیص: ',
@@ -1932,24 +1932,12 @@ async function 处理订阅值(请求241, 用户240 = null) {
 
     </head>
     <body>
-        <div class="matrix-bg"></div>
-        <div class="matrix-code-rain" id="matrixCodeRain"></div>
-            <div class="cp-hud">
-                <span class="cp-hud-line"><span class="cp-hud-label">SYS::</span> ${翻译值.terminal}</span>
-                <span class="cp-hud-line"><span class="cp-hud-label">NODE::</span> NIGHT_CITY</span>
-                <span class="cp-hud-line"><span class="cp-hud-label">LINK::</span> SECURE / ENC</span>
-            </div>
             <div class="cp-lang-wrapper">
-                <span class="cp-lang-tag">LANG_</span>
-                <select id="languageSelector" onchange="切换语言(this.value)">
+                <select id="languageSelector" onchange="切换语言(this.value)" aria-label="Language">
                     <option value="zh" ${!是否值236 ? 'selected' : ''}>🇨🇳 中文</option>
                     <option value="fa" ${是否值236 ? 'selected' : ''}>🇮🇷 فارسی</option>
                 </select>
             </div>
-            <button type="button" id="cpFxToggle" class="cp-fx-toggle" onclick="window.切换页面特效()" title="${是否值236 ? 'تغییر افکت‌های صفحه' : '切换页面特效'}" aria-label="FX toggle">
-                <span class="cp-fx-dot" aria-hidden="true"></span>
-                <span id="cpFxLabel">FX: ON</span>
-            </button>
         <div class="container">
             <div class="header">
                     <h1 class="title cp-glitch" data-text="${翻译值.title}">${翻译值.title}</h1>
@@ -2332,18 +2320,14 @@ async function 处理订阅值(请求241, 用户240 = null) {
         <div id="cpToastStack" class="cp-toast-stack" aria-live="polite" aria-atomic="false"></div>
         <div id="cpActionStatus" class="cp-action-status" role="status" aria-live="polite"></div>
         <div id="cpActionBar" class="cp-action-bar" role="toolbar" aria-label="${翻译值.configManagement}">
-            <button type="button" id="cpBtnSaveAll" class="cp-fab-save" title="${是否值236 ? 'ذخیره همه تنظیمات' : '保存所有配置 (Ctrl+S)'}">
-                <span class="cp-fab-icon">▣</span>
-                <span>${是否值236 ? 'ذخیره همه' : '保 存 全 部'}</span>
-                <span class="cp-fab-dot" aria-hidden="true"></span>
+            <button type="button" id="cpBtnReset" class="cp-action-btn cp-action-btn-danger" data-tip="${翻译值.resetConfig}" aria-label="${翻译值.resetConfig}">
+                <span class="cp-btn-label">${翻译值.resetConfig}</span>
             </button>
-            <button type="button" id="cpBtnRefresh" class="cp-action-btn" data-tip="${翻译值.refreshConfig}" aria-label="${翻译值.refreshConfig}">
-                <span aria-hidden="true">↻</span>
+            <button type="button" id="cpBtnRefresh" class="cp-action-btn cp-action-btn-ghost" data-tip="${翻译值.refreshConfig}" aria-label="${翻译值.refreshConfig}">
                 <span class="cp-btn-label">${翻译值.refreshConfig}</span>
             </button>
-            <button type="button" id="cpBtnReset" class="cp-action-btn cp-action-btn-danger" data-tip="${翻译值.resetConfig}" aria-label="${翻译值.resetConfig}">
-                <span aria-hidden="true">⌫</span>
-                <span class="cp-btn-label">${翻译值.resetConfig}</span>
+            <button type="button" id="cpBtnSaveAll" class="cp-action-btn cp-action-btn-primary" title="${是否值236 ? 'ذخیره همه تنظیمات' : '保存所有配置 (Ctrl+S)'}">
+                <span class="cp-btn-label" id="cpBtnSaveAllLabel">${是否值236 ? 'ذخیره همه' : '保存全部'}</span>
             </button>
         </div>
         <script>
@@ -2623,25 +2607,9 @@ function 生成客户端链接(客户端类型, 客户端名称) {
   }
 }
 
-// 页面特效图形化开关 (localStorage 持久化)
-window.应用页面特效 = function () {
-  var 本地值20189 = localStorage.getItem('cp-fx-off') === '1';
-  document.body.classList.toggle('fx-off', 本地值20189);
-  var 本地值20188 = document.getElementById('cpFxLabel');
-  if (本地值20188) 本地值20188.textContent = 本地值20189 ? 'FX: OFF' : 'FX: ON';
-  if (本地值20189) {
-    var 本地值20187 = document.getElementById('matrixCodeRain');
-    if (本地值20187) 本地值20187.innerHTML = '';
-  } else if (typeof 创建矩阵雨 === 'function') {
-    var 结果值 = document.getElementById('matrixCodeRain');
-    if (结果值 && !结果值.firstChild) 创建矩阵雨();
-  }
-};
-window.切换页面特效 = function () {
-  var 本地值20186 = localStorage.getItem('cp-fx-off') === '1';
-  localStorage.setItem('cp-fx-off', 本地值20186 ? '0' : '1');
-  window.应用页面特效();
-};
+// 页面特效已移除（保留空实现避免旧缓存报错）
+window.应用页面特效 = function () {};
+window.切换页面特效 = function () {};
 (function () {
   if (localStorage.getItem('cp-fx-off') === '1') {
     document.addEventListener('DOMContentLoaded', function () {
@@ -3500,12 +3468,13 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     const 本地值20082 = document.getElementById('cpBtnSaveAll');
-    const 原始文案 = 本地值20082 ? 本地值20082.textContent : '';
+    const 标签 = document.getElementById('cpBtnSaveAllLabel') || 本地值20082;
+    const 原始文案 = 标签 ? 标签.textContent : '';
     if (本地值20082) {
       本地值20082.classList.add('cp-action-btn-saving');
       本地值20082.disabled = true;
-      本地值20082.textContent = '${是否值236 ? 'در حال ذخیره…' : '保存中…'}';
     }
+    if (标签) 标签.textContent = '${是否值236 ? 'در حال ذخیره…' : '保存中…'}';
     try {
       await 保存配置(收集全部配置());
     } catch (保存错误) {
@@ -3513,8 +3482,8 @@ document.addEventListener('DOMContentLoaded', function () {
       if (本地值20082) {
         本地值20082.classList.remove('cp-action-btn-saving');
         本地值20082.disabled = false;
-        if (原始文案) 本地值20082.textContent = 原始文案;
       }
+      if (标签 && 原始文案) 标签.textContent = 原始文案;
     }
   }
   window.保存全部配置 = 保存全部配置;
