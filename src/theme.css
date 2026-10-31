@@ -513,3 +513,45 @@ body.landing .version {
   .client-grid-main { grid-template-columns: 1fr 1fr; }
   .status-k { flex-basis: 38%; }
 }
+
+
+/* form layout cleanup */
+.field, .field-sm, .field-block { margin-bottom: 14px; }
+.field-sm { margin-bottom: 10px; }
+.field-block { margin-bottom: 18px; }
+.field-label, label.field-label {
+  display: block; margin-bottom: 6px;
+  color: var(--text-secondary); font-weight: 600; font-size: 0.82rem;
+}
+.field-control {
+  width: 100%; min-height: 44px; padding: 10px 12px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: #fff; color: var(--text); font-family: inherit; font-size: 0.95rem;
+}
+.field-textarea { min-height: 110px; resize: vertical; }
+.field-hint { display: block; margin-top: 6px; color: var(--text-muted); font-size: 0.78rem; line-height: 1.4; }
+.check-grid { display: flex; flex-wrap: wrap; gap: 12px 18px; margin: 8px 0 12px; }
+.check-item { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); font-size: 0.9rem; font-weight: 500; }
+.check-input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.soft-box {
+  padding: 14px; margin: 10px 0; border-radius: 12px;
+  background: #f8fafc; border: 1px solid var(--border); color: var(--text);
+}
+.divider-block { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.btn-mini {
+  background: #fff; border: 1px solid var(--border-strong); border-radius: 8px;
+  padding: 6px 12px; color: var(--text-secondary); font-size: 0.8rem; font-weight: 600; cursor: pointer;
+}
+.footer-link { color: var(--accent); text-decoration: none; margin: 0 12px; font-size: 0.95rem; font-weight: 600; }
+.footer-link:hover { text-decoration: underline; }
+.config-content .field:first-child { margin-top: 4px; }
+
+/* denser page rhythm */
+.container { max-width: 640px; }
+.card { padding: 16px; margin-bottom: 12px; }
+.section-head { margin-bottom: 10px; }
+.status-row { padding: 9px 12px; font-size: 0.86rem; line-height: 1.45; }
+.client-btn { min-height: 42px; }
+.client-btn-main { min-height: 46px; }
+
