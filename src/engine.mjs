@@ -2324,17 +2324,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
                 </div>
                 <div id="statusMessage" style="display: none; padding: 10px; margin: 10px 0; border: 1px solid #d5dde8; background: #fff; color: #5b6777;"></div>
             </div>
-            
-            <section class="card">
-                <div class="section-head">
-                    <h2 class="card-title">${翻译值.relatedLinks}</h2>
-                </div>
-                <div style="text-align: center; margin: 20px 0;">
-                        <a href="https://github.com/byJoey/cfnew" target="_blank" class="footer-link">${翻译值.githubProject}</a>
-                        <a href="https://github.com/byJoey/yx-tools/releases/" target="_blank" rel="noopener noreferrer" class="footer-link">${翻译值.优选工具}</a>
-                    <a href="https://www.youtube.com/@joeyblog" target="_blank" class="footer-link">YouTube @joeyblog</a>
-                </div>
-            </div>
+
         </div>
         <div id="cpToastStack" class="cp-toast-stack" aria-live="polite" aria-atomic="false"></div>
         <div id="cpActionStatus" class="cp-action-status" role="status" aria-live="polite"></div>
