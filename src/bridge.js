@@ -1,3 +1,42 @@
+function initializePanelLayout() {
+  for (const container of document.querySelectorAll('.container, .container > form')) {
+    const cards = Array.from(container.children).filter(child => child.classList.contains('card'));
+    if (cards.length >= 2) container.classList.add('cp-layout-grid');
+    for (const card of cards) {
+      if (card.querySelector('textarea, table, .check-grid')) card.classList.add('cp-card-wide');
+    }
+  }
+  let bar;
+  let resizeObserver;
+  const measure = () => {
+    if (!bar) return;
+    const height = Math.ceil(bar.getBoundingClientRect().height);
+    document.documentElement.style.setProperty('--action-bar-height', height + 'px');
+  };
+  const bind = () => {
+    const current = document.querySelector('.cp-action-bar');
+    if (current === bar) return;
+    resizeObserver?.disconnect();
+    bar = current;
+    if (!bar) {
+      document.documentElement.style.removeProperty('--action-bar-height');
+      return;
+    }
+    if (typeof ResizeObserver === 'function') {
+      resizeObserver = new ResizeObserver(measure);
+      resizeObserver.observe(bar);
+    }
+    measure();
+  };
+  bind();
+  window.addEventListener('resize', measure, { passive: true });
+  // The engine may append or replace the action bar after DOMContentLoaded.
+  if (typeof MutationObserver === 'function') {
+    const observer = new MutationObserver(() => { bind(); measure(); });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class', 'style'] });
+  }
+}
+
 // 原界面的订阅和配置入口连接到各自的服务器。
 // 登录后用真实 UUID 保持连接，修改自定义入口不会使重载失效。
 const panelLocation = new URL(location.href);
@@ -18,6 +57,7 @@ else {
   history.replaceState(null, '', panelLocation);
 }
 document.addEventListener('DOMContentLoaded', () => {
+  initializePanelLayout();
   const release = window.CFNEW.release;
   const ignoredUpdateKey = 'cfnew-panel-ignored-update';
   let ignoredVersion = '';
