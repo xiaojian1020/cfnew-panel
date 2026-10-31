@@ -2417,75 +2417,61 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 });
 
-// 赛博朋克风 toast 通知 (替代 alert)
+// 轻量 toast（iOS 风格）
 window.显示提示 = function (消息20202, 类型20201, 本地值20200) {
   本地值20200 = 本地值20200 || {};
   var 堆栈 = document.getElementById('cpToastStack');
   if (!堆栈) return;
-  var 类型映射 = {
-    success: '✓',
-    info: '⌬',
-    warn: '⚠',
-    error: '✕'
-  };
-  var 标题映射 = {
-    success: 'SUCCESS',
-    info: 'INFO',
-    warn: 'WARN',
-    error: 'ERROR'
-  };
-  类型20201 = 类型映射[类型20201] ? 类型20201 : 'success';
-  var 持续时间 = 本地值20200.duration || 3200;
+  var 类型映射 = { success: '✓', info: 'i', warn: '!', error: '!' };
+  var 标题映射 = { success: '已完成', info: '提示', warn: '注意', error: '出错了' };
+  类型20201 = 类型映射[类型20201] ? 类型20201 : (类型20201 === 'err' ? 'error' : 'success');
+  if (类型20201 === 'err') 类型20201 = 'error';
+  var 持续时间 = 本地值20200.duration || (类型20201 === 'success' ? 2000 : 3200);
+  // 同类型只保留一条，避免堆叠
+  var 旧列表 = 堆栈.querySelectorAll('.cp-toast');
+  for (var i = 0; i < 旧列表.length; i++) {
+    if (旧列表[i].parentNode) 旧列表[i].parentNode.removeChild(旧列表[i]);
+  }
   var 提示 = document.createElement('div');
   提示.className = 'cp-toast cp-toast-' + 类型20201;
-  提示.style.setProperty('--cp-toast-dur', 持续时间 + 'ms');
   var 图标 = document.createElement('span');
   图标.className = 'cp-toast-icon';
-  图标.textContent = 类型映射[类型20201];
+  图标.setAttribute('aria-hidden', 'true');
+  图标.textContent = 类型映射[类型20201] || '✓';
   var 主体 = document.createElement('div');
   主体.className = 'cp-toast-body';
-  var 标题 = document.createElement('div');
-  标题.className = 'cp-toast-title';
-  标题.textContent = 本地值20200.title || 标题映射[类型20201];
+  var 消息文本 = String(消息20202 == null ? '' : 消息20202);
+  var 自定义标题 = 本地值20200.title;
+  // 成功类短消息：不再显示英文 SUCCESS，只保留正文
+  if (自定义标题 || (类型20201 !== 'success' && 消息文本.indexOf(String.fromCharCode(10)) >= 0)) {
+    var 标题 = document.createElement('div');
+    标题.className = 'cp-toast-title';
+    标题.textContent = 自定义标题 || 标题映射[类型20201] || '';
+    主体.appendChild(标题);
+  }
   var 消息20199 = document.createElement('div');
   消息20199.className = 'cp-toast-msg';
-  消息20199.textContent = String(消息20202 == null ? '' : 消息20202);
-  主体.appendChild(标题);
+  消息20199.textContent = 消息文本;
   主体.appendChild(消息20199);
-  var 关闭 = document.createElement('button');
-  关闭.type = 'button';
-  关闭.className = 'cp-toast-close';
-  关闭.setAttribute('aria-label', 'close');
-  关闭.textContent = '✕';
   提示.appendChild(图标);
   提示.appendChild(主体);
-  提示.appendChild(关闭);
   堆栈.appendChild(提示);
-  requestAnimationFrame(function () {
-    提示.classList.add('cp-show');
-  });
-  var 本地值20198 = false;
+  requestAnimationFrame(function () { 提示.classList.add('cp-show'); });
+  var 已关闭 = false;
   function 关闭提示() {
-    if (本地值20198) return;
-    本地值20198 = true;
+    if (已关闭) return;
+    已关闭 = true;
     提示.classList.remove('cp-show');
     提示.classList.add('cp-hide');
     setTimeout(function () {
       if (提示.parentNode) 提示.parentNode.removeChild(提示);
-    }, 400);
+    }, 280);
   }
-  关闭.addEventListener('click', 关闭提示);
+  提示.addEventListener('click', 关闭提示);
   var 计时器 = setTimeout(关闭提示, 持续时间);
-  提示.addEventListener('mouseenter', function () {
-    clearTimeout(计时器);
-  });
-  提示.addEventListener('mouseleave', function () {
-    计时器 = setTimeout(关闭提示, 1200);
-  });
-  return {
-    dismiss: 关闭提示,
-    element: 提示
-  };
+  提示.addEventListener('mouseenter', function () { clearTimeout(计时器); });
+  提示.addEventListener('mouseleave', function () { 计时器 = setTimeout(关闭提示, 1000); });
+  return { dismiss: 关闭提示, element: 提示 };
 };
 function 尝试打开应用(方案网址20197, 回退回调, 超时20196) {
   超时20196 = 超时20196 || 2500;
