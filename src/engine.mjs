@@ -1933,43 +1933,66 @@ async function 处理订阅值(请求241, 用户240 = null) {
     </head>
     <body>
         <div class="container">
-            <div class="header">
-                    <h1 class="title cp-glitch" data-text="${翻译值.title}">${翻译值.title}</h1>
+            <header class="page-header">
+                <div class="page-header-main">
+                    <h1 class="title">${翻译值.title}</h1>
                     <p class="subtitle">${翻译值.subtitle}</p>
-            </div>
-            <div class="card">
+                </div>
+            </header>
+
+            <section class="card card-primary">
+                <div class="section-head">
                     <h2 class="card-title">${翻译值.selectClient}</h2>
-                <div class="client-grid">
-                    <button class="client-btn" onclick="生成客户端链接(atob('Y2xhc2g='), 'CLASH')">CLASH</button>
-                    <button class="client-btn" onclick="生成客户端链接(atob('Y2xhc2g='), 'STASH')">STASH</button>
-                    <button class="client-btn" onclick="生成客户端链接(atob('c3VyZ2U='), 'SURGE')">SURGE</button>
-                    <button class="client-btn" onclick="生成客户端链接(atob('c2luZ2JveA=='), 'SING-BOX')">SING-BOX</button>
-                    <button class="client-btn" onclick="生成客户端链接(atob('bG9vbg=='), 'LOON')">LOON</button>
-                    <button class="client-btn" onclick="生成客户端链接(atob('cXVhbng='), 'QUANTUMULT X')">QUANTUMULT X</button>
-                    <button class="client-btn" onclick="生成客户端链接(atob('djJyYXk='), 'V2RAY')">V2RAY</button>
-                    <button class="client-btn" onclick="生成客户端链接(atob('djJyYXk='), 'V2RAYNG')">V2RAYNG</button>
-                    <button class="client-btn" onclick="生成客户端链接(atob('djJyYXk='), 'NEKORAY')">NEKORAY</button>
-                    <button class="client-btn" onclick="生成客户端链接(atob('djJyYXk='), 'Shadowrocket')">Shadowrocket</button>
-                    <button class="client-btn" id="jkClientBtn" style="${启用家宽链式 ? '' : 'display: none;'}" onclick="生成客户端链接('vg', '${翻译值.jkClient}')">${翻译值.jkClient}</button>
+                    <p class="section-desc">${是否值236 ? '' : '点击客户端生成订阅链接，可复制到对应 App'}</p>
                 </div>
-                <div class="subscription-url" id="clientSubscriptionUrl"></div>
-            </div>
-            <div class="card">
+                <div class="client-group">
+                    <div class="client-group-label">${是否值236 ? 'iOS' : '常用'}</div>
+                    <div class="client-grid client-grid-main">
+                        <button type="button" class="client-btn client-btn-main" onclick="生成客户端链接(atob('djJyYXk='), 'Shadowrocket')">Shadowrocket</button>
+                        <button type="button" class="client-btn client-btn-main" onclick="生成客户端链接(atob('Y2xhc2g='), 'CLASH')">Clash</button>
+                        <button type="button" class="client-btn" onclick="生成客户端链接(atob('c2luZ2JveA=='), 'SING-BOX')">Sing-box</button>
+                        <button type="button" class="client-btn" onclick="生成客户端链接(atob('djJyYXk='), 'V2RAYNG')">v2rayNG</button>
+                    </div>
+                </div>
+                <details class="more-clients">
+                    <summary>${是否值236 ? 'سایر کلاینت‌ها' : '更多客户端'}</summary>
+                    <div class="client-grid">
+                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接(atob('Y2xhc2g='), 'STASH')">Stash</button>
+                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接(atob('c3VyZ2U='), 'SURGE')">Surge</button>
+                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接(atob('bG9vbg=='), 'LOON')">Loon</button>
+                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接(atob('cXVhbng='), 'QUANTUMULT X')">Quantumult X</button>
+                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接(atob('djJyYXk='), 'V2RAY')">V2Ray</button>
+                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接(atob('djJyYXk='), 'NEKORAY')">NekoRay</button>
+                        <button type="button" class="client-btn client-btn-soft" id="jkClientBtn" style="${启用家宽链式 ? '' : 'display: none;'}" onclick="生成客户端链接('vg', '${翻译值.jkClient}')">${翻译值.jkClient}</button>
+                    </div>
+                </details>
+                <div class="sub-preview-wrap">
+                    <div class="sub-preview-label">${是否值236 ? 'لینک اشتراک' : '订阅链接预览'}</div>
+                    <div class="subscription-url" id="clientSubscriptionUrl">${是否值236 ? 'پس از انتخاب کلاینت نمایش داده می‌شود' : '选择上方客户端后显示链接'}</div>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="section-head">
                     <h2 class="card-title">${翻译值.systemStatus}</h2>
-                <div id="systemStatus" style="margin: 20px 0; padding: 15px; background: rgba(255, 255, 255, 0.98); border: 2px solid #f6821f; box-shadow: 0 0 20px rgba(246, 130, 31, 0.25), inset 0 0 15px rgba(246, 130, 31, 0.08); position: relative; overflow: hidden;">
-                        <div style="color: #f6821f; margin-bottom: 15px; font-weight: bold; text-shadow: 0 0 5px #f6821f;">[ ${翻译值.checking} ]</div>
-                        <div id="regionStatus" style="margin: 8px 0; color: #f6821f; font-family: 'Courier New', monospace; text-shadow: 0 0 3px #f6821f;">${翻译值.workerRegion}${翻译值.checking}</div>
-                        <div id="geoInfo" style="margin: 8px 0; color: #6b7280; font-family: 'Courier New', monospace; font-size: 0.9rem; text-shadow: 0 0 3px #6b7280;">${翻译值.detectionMethod}${翻译值.checking}</div>
-                        <div id="backupStatus" style="margin: 8px 0; color: #f6821f; font-family: 'Courier New', monospace; text-shadow: 0 0 3px #f6821f;">${翻译值.proxyIPStatus}${翻译值.checking}</div>
-                        <div id="currentIP" style="margin: 8px 0; color: #f6821f; font-family: 'Courier New', monospace; text-shadow: 0 0 3px #f6821f;">${翻译值.currentIP}${翻译值.checking}</div>
-                        <div id="echStatus" style="margin: 8px 0; color: #f6821f; font-family: 'Courier New', monospace; text-shadow: 0 0 3px #f6821f; font-size: 0.9rem;">ECH状态: ${翻译值.checking}</div>
-                        <div id="regionMatch" style="margin: 8px 0; color: #f6821f; font-family: 'Courier New', monospace; text-shadow: 0 0 3px #f6821f;">${翻译值.regionMatch}${翻译值.checking}</div>
-                        <div id="selectionLogic" style="margin: 8px 0; color: #6b7280; font-family: 'Courier New', monospace; font-size: 0.9rem; text-shadow: 0 0 3px #6b7280;">${翻译值.selectionLogic}${翻译值.selectionLogicText}</div>
                 </div>
-            </div>
-            <div class="card" id="configCard" style="display: none;">
+                <div id="systemStatus" class="status-panel">
+                    <div class="status-list">
+                        <div class="status-row" id="regionStatus">${翻译值.workerRegion}${翻译值.checking}</div>
+                        <div class="status-row" id="geoInfo">${翻译值.detectionMethod}${翻译值.checking}</div>
+                        <div class="status-row" id="backupStatus">${翻译值.proxyIPStatus}${翻译值.checking}</div>
+                        <div class="status-row" id="currentIP">${翻译值.currentIP}${翻译值.checking}</div>
+                        <div class="status-row" id="echStatus">ECH: ${翻译值.checking}</div>
+                        <div class="status-row" id="regionMatch">${翻译值.regionMatch}${翻译值.checking}</div>
+                        <div class="status-row" id="selectionLogic">${翻译值.selectionLogic}${翻译值.selectionLogicText}</div>
+                    </div>
+                </div>
+            </section>
+            <section class="card" id="configCard" style="display: none;">
+                <div class="section-head">
                     <h2 class="card-title">${翻译值.configManagement}</h2>
-                <div id="kvStatus" style="margin-bottom: 20px; padding: 10px; background: rgba(255, 255, 255, 0.98); border: 1px solid #f6821f; color: #f6821f;">
+                </div>
+                <div id="kvStatus" class="kv-banner">
                     ${翻译值.kvStatusChecking}
                 </div>
                 <div id="configContent" style="display: none;">
@@ -2302,8 +2325,10 @@ async function 处理订阅值(请求241, 用户240 = null) {
                 <div id="statusMessage" style="display: none; padding: 10px; margin: 10px 0; border: 1px solid #f6821f; background: rgba(255, 255, 255, 0.98); color: #f6821f; text-shadow: 0 0 5px #f6821f;"></div>
             </div>
             
-            <div class="card">
+            <section class="card">
+                <div class="section-head">
                     <h2 class="card-title">${翻译值.relatedLinks}</h2>
+                </div>
                 <div style="text-align: center; margin: 20px 0;">
                         <a href="https://github.com/byJoey/cfnew" target="_blank" style="color: #f6821f; text-decoration: none; margin: 0 20px; font-size: 1.2rem; text-shadow: 0 0 5px #f6821f;">${翻译值.githubProject}</a>
                         <a href="https://github.com/byJoey/yx-tools/releases/" target="_blank" rel="noopener noreferrer" style="color: #f6821f; text-decoration: none; margin: 0 20px; font-size: 1.2rem; text-shadow: 0 0 5px #f6821f;">${翻译值.优选工具}</a>
