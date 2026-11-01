@@ -1,16 +1,13 @@
 name: Preferred speed - one-off dry run
 
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/preferred-speed-once.yml']
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   measure:
-    if: github.event.head_commit.message == 'run: preferred speed dry-run once 2026-11-01'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
