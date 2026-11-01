@@ -1,0 +1,56 @@
+name: Apply selected 11 IPs to yx
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apply-fixed-preferred-ips
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      WORKER_HOST: ${{ secrets.WORKER_HOST }}
+      UUID: ${{ secrets.UUID }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate target, patch yx only and verify
+        run: |
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          const raw = process.env.WORKER_HOST || '';
+          const worker = new URL(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw);
+          const uuid = (process.env.UUID || '').trim().toLowerCase();
+          if (worker.origin !== 'https://zxj-5tb.pages.dev' || worker.pathname !== '/' || worker.search || worker.hash || worker.username || worker.password) throw new Error('Worker mismatch; no write');
+          if (createHash('sha256').update(uuid).digest('hex') !== '24fd3f583a67fdbd0c5ae6b1086e506ab3c005f378cd1314c51208217b0660a9') throw new Error('UUID mismatch; no write');
+          const yx = '172.67.71.17:443#小健优选-DX,104.17.148.142:443#小健优选-DX,104.17.125.43:443#小健优选-DX,104.17.137.89:443#小健优选-DX,104.17.159.180:443#小健优选-DX,104.26.14.111:443#小健优选-LT,172.67.67.89:443#小健优选-LT,172.67.74.177:443#小健优选-LT,104.26.11.140:443#小健优选-LT,104.17.22.231:443#小健优选-YD,104.17.125.98:443#小健优选-YD';
+          const endpoint = `${worker.origin}/${uuid}/api/config`;
+          async function call(method, body) {
+            const res = await fetch(endpoint, { method, redirect: 'error', signal: AbortSignal.timeout(15000), headers: {Accept:'application/json','Content-Type':'application/json'}, ...(body ? {body:JSON.stringify(body)} : {}) });
+            if (!res.ok) throw new Error(`Worker returned HTTP ${res.status}; inspect state before retrying if POST was attempted`);
+            try { return await res.json(); } catch { throw new Error('Worker returned invalid JSON; inspect state before retrying if POST was attempted'); }
+          }
+          const before = await call('GET');
+          if (before.kvEnabled !== true) throw new Error('KV not enabled; no write');
+          const normalized = value => String(value || '').split(/[,\r\n]+/).map(s=>s.trim()).filter(Boolean).sort().join('\n');
+          if (normalized(before.yx) === normalized(yx)) console.log('yx already matches the selected 11 entries; no POST needed');
+          else {
+            const saved = await call('POST', {yx});
+            if (saved.success !== true) throw new Error('Worker did not confirm success; inspect current yx');
+            let verified = false;
+            for (let i=0; i<5; i++) {
+              const current = await call('GET');
+              if (normalized(current.yx) === normalized(yx)) { verified = true; break; }
+              await new Promise(resolve=>setTimeout(resolve,3000));
+            }
+            if (!verified) throw new Error('POST succeeded but read-back did not match yet; do not assume rollback or retry blindly');
+            console.log('Verified: yx contains the selected 11 IP entries; refresh your existing subscription');
+          }
+          NODE
