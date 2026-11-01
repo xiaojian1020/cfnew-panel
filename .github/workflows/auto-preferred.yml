@@ -1,15 +1,10 @@
 name: Auto preferred IPs (三网)
 
-# Source ranking supplies candidates; CDN throughput is measured from the runner, NOT nationwide.
+# 无电脑时用这个：按国内公开测速源的顺序选取，不用 GitHub 所在地的延迟排名
 on:
   schedule:
     - cron: '0 */6 * * *'
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'Only test; do not write yx'
-        type: boolean
-        default: true
 
 jobs:
   sync:
@@ -20,7 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Select candidates, download test and gate yx write
+      - name: Auto select & write (source rank)
         env:
           WORKER_HOST: ${{ secrets.WORKER_HOST }}
           UUID: ${{ secrets.UUID }}
@@ -31,11 +26,4 @@ jobs:
           TIMEOUT_MS: '8000'
           MIN_OK: '3'
           RANK_BY: source
-          MIN_DOWNLOAD_MBPS: '5'
-          DOWNLOAD_CANDIDATES_PER_LINE: '10'
-          DOWNLOAD_ROUNDS: '2'
-          DOWNLOAD_DURATION_MS: '5000'
-          DOWNLOAD_TIMEOUT_MS: '10000'
-          DOWNLOAD_MAX_BYTES: '100000000'
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '0' }}
-        run: node scripts/auto-preferred-speed.mjs
+        run: node scripts/auto-preferred.mjs
