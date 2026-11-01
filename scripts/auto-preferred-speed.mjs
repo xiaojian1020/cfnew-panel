@@ -52,7 +52,7 @@ export function measureDownload(target, options, requestFn = httpsRequest, now =
       const elapsed = now() - started;
       res?.destroy(); req?.destroy();
       if (error) reject(error);
-      else if (!valid || bytes < 1048576 || elapsed <= 0) reject(new Error('Insufficient download sample'));
+      else if (!valid || bytes < 1048576 || elapsed <= 0) reject(new Error(`Insufficient download sample: ${bytes} bytes in ${Math.round(elapsed)}ms`));
       else resolve({ mbps: bytes / 1000000 / (elapsed / 1000), bytes, elapsedMs: elapsed });
     }
     try {
@@ -64,16 +64,16 @@ export function measureDownload(target, options, requestFn = httpsRequest, now =
         res = response;
         const encoding = String(res.headers['content-encoding'] || 'identity').toLowerCase();
         if (res.statusCode !== 200 || encoding !== 'identity' || !/^application\/octet-stream\b/i.test(String(res.headers['content-type'] || ''))) {
-          finish(new Error('Download endpoint returned non-binary, compressed, or non-200 response')); return;
+          finish(new Error(`HTTP ${res.statusCode}; content-type=${res.headers['content-type'] || 'none'}; encoding=${encoding}`)); return;
         }
         valid = true;
         res.on('data', chunk => { bytes += Math.min(chunk.length, maxBytes - bytes); if (bytes >= maxBytes) finish(); });
         res.on('end', () => finish());
-        res.on('aborted', () => finish(new Error('Download aborted')));
+        res.on('aborted', () => finish(new Error(`Download aborted after ${bytes} bytes`)));
         res.on('error', finish);
       });
       req.on('error', finish);
-      timer = setTimeout(() => finish(new Error('Download timeout')), options.timeoutMs);
+      timer = setTimeout(() => finish(new Error(`Download timeout after ${bytes} bytes`)), options.timeoutMs);
       interval = setInterval(() => { if (now() - started >= options.durationMs) finish(); }, 100);
       req.end();
     } catch (error) { finish(error); }
@@ -99,10 +99,10 @@ async function main() {
   const rounds = Math.floor(numberOption(env.DOWNLOAD_ROUNDS,2,1,3));
   const minOk = Math.floor(numberOption(env.MIN_OK,3,1,60));
   const options = {
-    url: env.DOWNLOAD_URL || 'https://speed.cloudflare.com/__down?bytes=100000000',
+    url: env.DOWNLOAD_URL || 'https://speed.cloudflare.com/__down?bytes=25000000',
     durationMs: numberOption(env.DOWNLOAD_DURATION_MS,5000,1000,15000),
     timeoutMs: numberOption(env.DOWNLOAD_TIMEOUT_MS,10000,2000,30000),
-    maxBytes: Math.floor(numberOption(env.DOWNLOAD_MAX_BYTES,100000000,1048576,200000000)),
+    maxBytes: Math.floor(numberOption(env.DOWNLOAD_MAX_BYTES,25000000,1048576,200000000)),
   };
   if (options.timeoutMs <= options.durationMs) throw new Error('Download timeout must exceed duration');
   const url = new URL(options.url);
@@ -123,7 +123,7 @@ async function main() {
       }
       if (row.speeds.length === rounds && row.speeds.every(n => n >= minimum)) results.push(row);
       console.log(`[speed] ${target.host}:${target.port} ${row.speeds.map(n=>n.toFixed(2)).join('/')} MB/s`);
-    } catch { console.log(`[speed] ${target.host}:${target.port} failed; excluded`); }
+    } catch (error) { console.log(`[speed] ${target.host}:${target.port} failed: ${error.message}`); }
   }
   const selected = chooseFast(results,minimum,perLine);
   if (selected.length < minOk) throw new Error(`Only ${selected.length} passed; MIN_OK=${minOk}; existing yx unchanged`);
