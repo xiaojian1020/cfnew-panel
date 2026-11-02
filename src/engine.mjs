@@ -2344,6 +2344,15 @@ async function 处理订阅值(请求241, 用户240 = null) {
 var 订阅转换网址 = ${JSON.stringify(订阅转换接口).replaceAll("<", "\\u003c")};
 // 远程配置URL（硬编码）
 var 远程配置网址 = "${远程配置网址}";
+// 将外部数据（Worker 返回的配置、探测结果等）安全插入 HTML，防止注入
+function 转义HTML(值) {
+  return String(值)
+    .replaceAll('&', '&' + 'amp;')
+    .replaceAll('<', '&' + 'lt;')
+    .replaceAll('>', '&' + 'gt;')
+    .replaceAll('"', '&' + 'quot;')
+    .replaceAll("'", '&' + '#39;');
+}
 
 // 翻译对象
 const 本地值20215 = {
@@ -2765,7 +2774,7 @@ async function 检查系统状态() {
         值地区20169 = 'CUSTOM';
 
         // 获取自定义IP的详细信息
-        const 自定义地址值 = 数据20167.ci || 翻译值20170.unknown;
+        const 自定义地址值 = 转义HTML(数据20167.ci || 翻译值20170.unknown);
         值值20179.innerHTML = 翻译值20170.detectionMethod + '<span style="color: #f59e0b;">⚙️ ' + 翻译值20170.customIPMode + '</span>';
         地区状态.innerHTML = 翻译值20170.workerRegion + '<span style="color: #f59e0b;">🔧 ' + 翻译值20170.customIPModeDesc + '</span>';
 
@@ -3373,12 +3382,12 @@ async function 检查加密问候状态() {
     const 加密客户端问候状态头部 = 响应20095.headers.get('X-ECH-Status');
     const 加密客户端问候配置长度 = 响应20095.headers.get('X-ECH-Config-Length');
     if (加密客户端问候状态头部 === 'ENABLED') {
-      加密客户端问候状态值.innerHTML = 'ECH状态: <span style="color: #10b981;">✅ 已启用' + (加密客户端问候配置长度 ? ' (配置长度: ' + 加密客户端问候配置长度 + ')' : '') + '</span>';
+      加密客户端问候状态值.innerHTML = 'ECH状态: <span style="color: #10b981;">✅ 已启用' + (加密客户端问候配置长度 ? ' (配置长度: ' + 转义HTML(加密客户端问候配置长度) + ')' : '') + '</span>';
     } else {
       加密客户端问候状态值.innerHTML = 'ECH状态: <span style="color: #f59e0b;">⚠️ 未启用</span>';
     }
   } catch (错误20094) {
-    加密客户端问候状态值.innerHTML = 'ECH状态: <span style="color: #ef4444;">❌ 检测失败: ' + 错误20094.message + '</span>';
+    加密客户端问候状态值.innerHTML = 'ECH状态: <span style="color: #ef4444;">❌ 检测失败: ' + 转义HTML(错误20094.message) + '</span>';
   }
 }
 document.addEventListener('DOMContentLoaded', function () {
@@ -3784,8 +3793,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const 本地值20042 = document.createElement('div');
         本地值20042.style.cssText = 'flex: 1; font-family: monospace; font-size: 13px;';
         const 机房名称20041 = 结果20046.colo ? 获取机房名称(结果20046.colo) : '';
-        const 机房显示 = 机房名称20041 ? ' <span style="color: #3b82f6;">[' + 机房名称20041 + ']</span>' : '';
-        本地值20042.innerHTML = '<span style="color: #f6821f;">' + 结果20046.host + ':' + 结果20046.port + '</span>' + 机房显示 + ' <span style="color: #f59e0b;">' + 结果20046.latency + 'ms</span>';
+        const 机房显示 = 机房名称20041 ? ' <span style="color: #3b82f6;">[' + 转义HTML(机房名称20041) + ']</span>' : '';
+        本地值20042.innerHTML = '<span style="color: #f6821f;">' + 转义HTML(结果20046.host) + ':' + 转义HTML(结果20046.port) + '</span>' + 机房显示 + ' <span style="color: #f59e0b;">' + 转义HTML(结果20046.latency) + 'ms</span>';
         结果项目.appendChild(复选框20043);
         结果项目.appendChild(本地值20042);
         结果列表列表.appendChild(结果项目);
