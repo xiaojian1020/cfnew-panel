@@ -1,6 +1,6 @@
 # CFnew 独立面板
 
-[![部署到 Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FbyJoey%2Fcfnew-panel&project-name=cfnew-panel&repository-name=cfnew-panel)
+[![部署到 Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fxiaojian1020%2Fcfnew-panel&project-name=cfnew-panel&repository-name=cfnew-panel)
 [![Node.js 22](https://img.shields.io/badge/Node.js-22-43853d)](https://nodejs.org/)
 [![源码许可](https://img.shields.io/badge/源码许可-署名与禁止冒充原创-blue)](./LICENSE)
 
@@ -78,7 +78,7 @@ Clash： /sub?host=your-worker.example.com&uuid=你的UUID&target=clash
 Node.js 22：
 
 ```bash
-git clone https://github.com/byJoey/cfnew-panel.git
+git clone https://github.com/xiaojian1020/cfnew-panel.git
 cd cfnew-panel
 npm start
 # 可选：固定自己的 Worker

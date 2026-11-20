@@ -3,22 +3,83 @@ import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
 import { buildSingboxConfig, normalizeNodeNames } from './singbox.mjs';
 import {
-  isValidAddress as 是否有效地址,
-  normalizeNodeHost as 规范化节点主机,
-  processNodeAliasPart as 处理值节点别名部分,
-  getNodeAliasBase as 获取值节点别名基础,
-  createNodeNamer as 创建值节点命名器,
+  isValidAddress,
+  normalizeNodeHost,
+  processNodeAliasPart,
+  getNodeAliasBase,
+  createNodeNamer,
 } from './engine-nodes.mjs';
+import {
+  CLOUDFLARE_IP_API_URL,
+  ERROR_INVALID_SOCKS_ADDRESS,
+  FORMAT_CLASH,
+  FORMAT_CLASHR,
+  FORMAT_CLASH_META,
+  FORMAT_LOON,
+  FORMAT_QUANTUMULT,
+  FORMAT_QUANX,
+  FORMAT_SINGBOX,
+  FORMAT_SING_BOX,
+  FORMAT_SS,
+  FORMAT_SSR,
+  FORMAT_STASH,
+  FORMAT_SURGE,
+  FORMAT_SURGE2,
+  FORMAT_SURGE3,
+  FORMAT_SURGE4,
+  FORMAT_V2RAY,
+  ICON_PROXY_PNG,
+  INSTALL_URL_CLASH,
+  INSTALL_URL_LOON,
+  INSTALL_URL_NEKORAY,
+  INSTALL_URL_QUANTUMULT_X,
+  INSTALL_URL_SHADOWROCKET,
+  INSTALL_URL_SING_BOX,
+  INSTALL_URL_STASH,
+  INSTALL_URL_SURGE,
+  INSTALL_URL_V2RAYNG,
+  NODE_TYPE_OPENVPN,
+  PROTOCOL_TROJAN,
+  PROTOCOL_VLESS,
+  PROXY_IP_PREFIX,
+  PROXY_IP_STATUS_LABEL,
+  REQUEST_SIGN_INNER_SALT,
+  REQUEST_SIGN_OUTER_SALT,
+  RULE_BASE_ACL4SSR_CLASH,
+  RULE_BASE_LOYALSOLDIER_CLASH,
+  RULE_BASE_QUANTUMULTX,
+  SCHEME_HTTP,
+  SCHEME_HTTPS,
+  SCHEME_SOCKS,
+  SCHEME_SOCKS5,
+  SCHEME_TROJAN,
+  SCHEME_VLESS,
+  SUBSCRIPTION_CONVERTER_URL,
+  TARGET_JIAKUAN,
+  TLS_REALITY,
+  VPNGATE_API_URL,
+  VPNGATE_DIALER_PROXY_FIELD,
+  VPNGATE_PUBLIC_PREFIX,
+} from './engine-constants.mjs';
+import {
+  CONFIG_DEFAULTS,
+  decodeBase64,
+  getConfigValue,
+  getEffectiveConfigSnapshot,
+  getOfficialDirectAddress,
+} from './engine-config.mjs';
+import {
+  applyAlpnParam,
+  buildProxyGroupInlineList,
+  buildProxyGroupProxiesYaml,
+  normalizeAlpn,
+  normalizeValueHost,
+  orderAddressesByRegionPreference,
+  parseAddressPort,
+  pickFallbackAddress,
+  quoteValueString,
+} from './engine-utils.mjs';
 export function createSubscriptionEngine(config, uuid) {
-const 基础64文本解码器 = new TextDecoder();
-
-function 解码64(文本) {
-  const 二进制 = atob(文本);
-  const 字节 = new Uint8Array(二进制.length);
-  for (let 索引 = 0; 索引 < 二进制.length; 索引++) 字节[索引] = 二进制.charCodeAt(索引);
-  return 基础64文本解码器.decode(字节);
-}
-
 let 认证令牌 = '351c9981-04b6-4103-aa4b-864aa9c91469';
 
 let 回退地址 = '';
@@ -63,7 +124,7 @@ let 自定义加密客户端问候域名 = 'cloudflare-ech.com';
 
 let 自定义应用层协议协商 = '';
 
-let 订阅转换接口 = 解码64('aHR0cHM6Ly91cmwudjEubWsvc3Vi');
+let 订阅转换接口 = SUBSCRIPTION_CONVERTER_URL;
 
 const 远程配置网址 = 'https://raw.githubusercontent.com/byJoey/test/refs/heads/main/tist.ini';
 
@@ -80,210 +141,74 @@ let 启用家宽链式 = false;
 let 键值配置 = {};
 
 const supportsFreeCpu = Object.hasOwn(config, 'freeCpu');
-const 配置默认值 = {
-  freeCpu: 'no',
-  wk: '',
-  ev: 'yes',
-  et: 'no',
-  ex: 'no',
-  ech: 'no',
-  tp: '',
-  customDNS: 'https://223.5.5.5/dns-query',
-  customECHDomain: 'cloudflare-ech.com',
-  alpn: '',
-  d: '',
-  p: '',
-  yx: '',
-  yxURL: '',
-  s: '',
-  homepage: '',
-  scu: 解码64('aHR0cHM6Ly91cmwudjEubWsvc3Vi'),
-  ena: 'no',
-  epd: 'yes',
-  epi: 'yes',
-  egi: 'yes',
-  ae: '',
-  rm: '',
-  qj: '',
-  dkby: 'no',
-  yxby: '',
-  ipv4: 'yes',
-  ipv6: 'yes',
-  ispMobile: 'yes',
-  ispUnicom: 'yes',
-  ispTelecom: 'yes',
-  jk: 'no'
-};
-
-function 是否开启值(值, 默认启用 = false) {
-  if (值 === undefined || 值 === null || 值 === '') return 默认启用;
-  if (值 === true || 值 === false) return 值;
-  const 文本 = String(值).trim().toLowerCase();
-  if (文本 === 'yes' || 文本 === 'true' || 文本 === '1' || 文本 === 'on') return true;
-  if (文本 === 'no' || 文本 === 'false' || 文本 === '0' || 文本 === 'off') return false;
-  return 默认启用;
-}
-
-function 归一配置开关(值, 默认启用 = false) {
-  return 是否开启值(值, 默认启用) ? 'yes' : 'no';
-}
-
-function 整理有效配置(配置) {
-  const 快照 = {
-    ...配置默认值,
-    ...配置
-  };
-  ['freeCpu', 'ev', 'et', 'ex', 'ech', 'ena', 'epd', 'epi', 'egi', 'ipv4', 'ipv6', 'ispMobile', 'ispUnicom', 'ispTelecom', 'jk'].forEach(键 => {
-    快照[键] = 归一配置开关(快照[键], 是否开启值(配置默认值[键]));
-  });
-  if (快照.ev === 'no' && 快照.et === 'no' && 快照.ex === 'no') {
-    快照.ev = 'yes';
-  }
-  if (快照.ech === 'yes') {
-    快照.dkby = 'yes';
-  }
-  return 快照;
-}
-
-function 读取环境配置值(环境值, ...名称列表) {
-  if (!环境值) return undefined;
-  for (const 名称 of 名称列表) {
-    if (环境值[名称] !== undefined && 环境值[名称] !== null && 环境值[名称] !== '') {
-      return 环境值[名称];
-    }
-  }
-  return undefined;
-}
-
-function 获取环境配置快照(环境值 = {}) {
-  const 映射 = {
-    freeCpu: ['freeCpu', 'FREE_CPU'],
-    wk: ['wk', 'WK'],
-    ev: ['ev', 'EV'],
-    et: ['et', 'ET'],
-    ex: ['ex', 'EX'],
-    ech: ['ech', 'ECH'],
-    tp: ['tp', 'TP'],
-    customDNS: ['customDNS', 'CUSTOMDNS', 'CUSTOM_DNS'],
-    customECHDomain: ['customECHDomain', 'CUSTOMECHDOMAIN', 'CUSTOM_ECH_DOMAIN'],
-    alpn: ['alpn', 'ALPN'],
-    d: ['d', 'D'],
-    p: ['p', 'P'],
-    yx: ['yx', 'YX'],
-    yxURL: ['yxURL', 'YXURL', 'YX_URL'],
-    s: ['s', 'S'],
-    homepage: ['homepage', 'HOMEPAGE'],
-    scu: ['scu', 'SCU'],
-    ena: ['ena', 'ENA'],
-    epd: ['epd', 'EPD'],
-    epi: ['epi', 'EPI'],
-    egi: ['egi', 'EGI'],
-    ae: ['ae', 'AE'],
-    rm: ['rm', 'RM'],
-    qj: ['qj', 'QJ'],
-    dkby: ['dkby', 'DKBY'],
-    yxby: ['yxby', 'YXBY'],
-    ipv4: ['ipv4', 'IPV4'],
-    ipv6: ['ipv6', 'IPV6'],
-    ispMobile: ['ispMobile', 'ISPMOBILE', 'ISP_MOBILE'],
-    ispUnicom: ['ispUnicom', 'ISPUNICOM', 'ISP_UNICOM'],
-    ispTelecom: ['ispTelecom', 'ISPTELECOM', 'ISP_TELECOM'],
-    jk: ['jk', 'JK']
-  };
-  const 快照 = {};
-  for (const [键, 名称列表] of Object.entries(映射)) {
-    const 值 = 读取环境配置值(环境值, ...名称列表);
-    if (值 !== undefined) 快照[键] = 值;
-  }
-  return 快照;
-}
-
-function 获取有效配置快照(环境值 = {}) {
-  return 整理有效配置({
-    ...获取环境配置快照(环境值),
-    ...键值配置
-  });
-}
-
-const 官方直连地址 = ['pp.xy.kg'];
-
-function 取官方直连地址() {
-  const 命中 = 官方直连地址[Math.floor(Math.random() * 官方直连地址.length)];
-  return {
-    domain: 命中,
-    region: 'CF',
-    regionCode: 'CF',
-    port: 443
-  };
-}
 
 let 备用地址列表 = [{
-  domain: 解码64('UHJveHlJUC5ISy5DTUxpdXNzc3MubmV0'),
+  domain: "ProxyIP.HK.CMLiussss.net",
   region: 'HK',
   regionCode: 'HK',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5VUy5DTUxpdXNzc3MubmV0'),
+  domain: "ProxyIP.US.CMLiussss.net",
   region: 'US',
   regionCode: 'US',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5TRy5DTUxpdXNzc3MubmV0'),
+  domain: "ProxyIP.SG.CMLiussss.net",
   region: 'SG',
   regionCode: 'SG',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5KUC5DTUxpdXNzc3MubmV0'),
+  domain: "ProxyIP.JP.CMLiussss.net",
   region: 'JP',
   regionCode: 'JP',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5LUi5DTUxpdXNzc3MubmV0'),
+  domain: "ProxyIP.KR.CMLiussss.net",
   region: 'KR',
   regionCode: 'KR',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5ERS5DTUxpdXNzc3MubmV0'),
+  domain: "ProxyIP.DE.CMLiussss.net",
   region: 'DE',
   regionCode: 'DE',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5TRS5DTUxpdXNzc3MubmV0'),
+  domain: "ProxyIP.SE.CMLiussss.net",
   region: 'SE',
   regionCode: 'SE',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5OTC5DTUxpdXNzc3MubmV0'),
+  domain: "ProxyIP.NL.CMLiussss.net",
   region: 'NL',
   regionCode: 'NL',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5GSS5DTUxpdXNzc3MubmV0'),
+  domain: "ProxyIP.FI.CMLiussss.net",
   region: 'FI',
   regionCode: 'FI',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5HQi5DTUxpdXNzc3MubmV0'),
+  domain: "ProxyIP.GB.CMLiussss.net",
   region: 'GB',
   regionCode: 'GB',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5PcmFjbGUuY21saXVzc3NzLm5ldA=='),
+  domain: "ProxyIP.Oracle.cmliussss.net",
   region: 'Oracle',
   regionCode: 'Oracle',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5EaWdpdGFsT2NlYW4uQ01MaXVzc3NzLm5ldA=='),
+  domain: "ProxyIP.DigitalOcean.CMLiussss.net",
   region: 'DigitalOcean',
   regionCode: 'DigitalOcean',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5WdWx0ci5DTUxpdXNzc3MubmV0'),
+  domain: "ProxyIP.Vultr.CMLiussss.net",
   region: 'Vultr',
   regionCode: 'Vultr',
   port: 443
 }, {
-  domain: 解码64('UHJveHlJUC5NdWx0YWNvbS5DTUxpdXNzc3MubmV0'),
+  domain: "ProxyIP.Multacom.CMLiussss.net",
   region: 'Multacom',
   regionCode: 'Multacom',
   port: 443
@@ -335,15 +260,15 @@ const 直连域名列表 = [{
   domain: "xn--b6gac.eu.org"
 }];
 
-const 错误_无效代理地址 = atob('SW52YWxpZCBTT0NLUyBhZGRyZXNzIGZvcm1hdA==');
+const 错误_无效代理地址 = ERROR_INVALID_SOCKS_ADDRESS;
 
-const 前缀_套接字5 = atob('c29ja3M1Oi8v');
+const 前缀_套接字5 = SCHEME_SOCKS5;
 
-const 前缀_套接字 = atob('c29ja3M6Ly8=');
+const 前缀_套接字 = SCHEME_SOCKS;
 
-const 前缀_超文本 = atob('aHR0cDovLw==');
+const 前缀_超文本 = SCHEME_HTTP;
 
-const 前缀_安全超文本 = atob('aHR0cHM6Ly8=');
+const 前缀_安全超文本 = SCHEME_HTTPS;
 
 const 代理种类_套接字5 = 'p5';
 
@@ -357,172 +282,27 @@ let 是否代理已启用 = false;
 
 /* 节点命名：见 ./engine-nodes.mjs */
 
-function 规范化应用层协议协商(值777) {
-  const 本地值776 = ['', 'h3', 'h2', 'http/1.1', 'h3,h2', 'h2,http/1.1', 'h3,h2,http/1.1'];
-  const 应用层协议协商775 = String(值777 || '').trim();
-  return 本地值776.includes(应用层协议协商775) ? 应用层协议协商775 : '';
-}
 
-function 处理值应用层协议协商值(参数774) {
-  const 应用层协议协商 = 规范化应用层协议协商(自定义应用层协议协商);
-  if (应用层协议协商) 参数774.set('alpn', 应用层协议协商);
-}
 
-function 获取配置值(键765, 默认值 = '') {
-  if (键值配置[键765] !== undefined) {
-    return 键值配置[键765];
-  }
-  return 默认值;
-}
 
-async function 获取值备用地址(工作器地区753 = '', 值地区匹配752 = 启用地区匹配) {
-  // wk 留空时走官方直连域名，手填 p 仍优先。
-  if (!工作器地区753 || 工作器地区753 === 'CF') {
-    return 取官方直连地址();
-  }
-  if (备用地址列表.length === 0) {
-    return 取官方直连地址();
-  }
-  const 可用地址列表751 = 备用地址列表.map(地址750 => ({
-    ...地址750,
-    available: true
-  }));
-  if (值地区匹配752 && 工作器地区753) {
-    const 值地址列表749 = 获取值地区值(工作器地区753, 可用地址列表751, 值地区匹配752);
-    if (值地址列表749.length > 0) {
-      const 已选地址748 = 值地址列表749[0];
-      return 已选地址748;
-    }
-  }
-  const 已选地址 = 可用地址列表751[0];
-  return 已选地址;
-}
 
-function 获取值值(地区747) {
-  const 值映射 = {
-    'US': ['SG', 'JP', 'KR'],
-    'SG': ['JP', 'KR', 'US'],
-    'JP': ['SG', 'KR', 'US'],
-    'KR': ['JP', 'SG', 'US'],
-    'DE': ['NL', 'GB', 'SE', 'FI'],
-    'SE': ['DE', 'NL', 'FI', 'GB'],
-    'NL': ['DE', 'GB', 'SE', 'FI'],
-    'FI': ['SE', 'DE', 'NL', 'GB'],
-    'GB': ['DE', 'NL', 'SE', 'FI']
-  };
-  return 值映射[地区747] || [];
-}
-
-function 获取值值值值(地区746) {
-  const 值值745 = 获取值值(地区746);
-  const 值值744 = ['US', 'SG', 'JP', 'KR', 'DE', 'SE', 'NL', 'FI', 'GB'];
-  return [地区746, ...值值745, ...值值744.filter(结果值743 => 结果值743 !== 地区746 && !值值745.includes(结果值743))];
-}
-
-function 获取值地区值(工作器地区, 可用地址列表, 值地区匹配 = 启用地区匹配) {
-  if (!值地区匹配 || !工作器地区) {
-    return 可用地址列表;
-  }
-  const 值值742 = 获取值值值值(工作器地区);
-  const 值地址列表741 = [];
-  for (const 地区 of 值值742) {
-    const 地区地址列表 = 可用地址列表.filter(地址740 => 地址740.regionCode === 地区);
-    值地址列表741.push(...地区地址列表);
-  }
-  return 值地址列表741;
-}
-
-function 解析地址值端口(输入) {
-  if (输入.includes('[') && 输入.includes(']')) {
-    const 本地值739 = 输入.match(/^\[([^\]]+)\](?::(\d+))?$/);
-    if (本地值739) {
-      return {
-        address: 本地值739[1],
-        port: 本地值739[2] ? parseInt(本地值739[2], 10) : null
-      };
-    }
-  }
-  const 值值索引738 = 输入.lastIndexOf(':');
-  if (值值索引738 > 0) {
-    const 地址737 = 输入.substring(0, 值值索引738);
-    const 端口字符串 = 输入.substring(值值索引738 + 1);
-    const 端口736 = parseInt(端口字符串, 10);
-
-    // address 含 ':' 说明是裸 IPv6（如 2001:db8::1），整体当地址，无端口
-    if (!地址737.includes(':') && !isNaN(端口736) && 端口736 > 0 && 端口736 <= 65535) {
-      return {
-        address: 地址737,
-        port: 端口736
-      };
-    }
-  }
-  return {
-    address: 输入,
-    port: null
-  };
-}
-
-function 处理本地值622(取值621) {
-  if (取值621 == null) return '""';
-  const 字符串值620 = String(取值621);
-  return '"' + 字符串值620.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
-}
-
-function 规范化值主机(主机名619) {
-  if (!主机名619) return 主机名619;
-  const 头值618 = String(主机名619);
-  if (头值618.startsWith('[') && 头值618.endsWith(']')) return 头值618.slice(1, -1);
-  return 头值618;
-}
-
-function 处理值选择值(名称列表617, 本地值616 = {}) {
-  const {
-    directFirst: 直连首次615 = false,
-    extraGroups: 值值614 = []
-  } = 本地值616;
-  const 节点行列表 = 名称列表617.length ? 名称列表617.map(数量值613 => `      - ${处理本地值622(数量值613)}`).join('\n') : '      - DIRECT';
-  const 行列表612 = [];
-  if (直连首次615) {
-    行列表612.push('      - "🎯 全球直连"', '      - "🚀 节点选择"');
-  } else {
-    行列表612.push('      - "🚀 节点选择"', '      - "🎯 全球直连"');
-  }
-  for (const 本地值611 of 值值614) 行列表612.push(`      - ${处理本地值622(本地值611)}`);
-  行列表612.push(节点行列表);
-  return 行列表612.join('\n');
-}
-
-function 处理值值列表(名称列表610, 本地值609 = {}) {
-  const {
-    directFirst: 直连首次 = false,
-    extraGroups: 值值608 = [],
-    compact: 本地值607 = false
-  } = 本地值609;
-  const 本地值606 = 本地值607 ? ',' : ', ';
-  const 列表605 = 名称列表610.length ? 名称列表610.join(本地值606) : 'DIRECT';
-  const 部分列表604 = [];
-  if (直连首次) 部分列表604.push('🎯 全球直连', '🚀 节点选择');else 部分列表604.push('🚀 节点选择', '🎯 全球直连');
-  部分列表604.push(...值值608);
-  if (名称列表610.length) 部分列表604.push(列表605);
-  return 部分列表604.join(本地值606);
-}
 
 function 解析值链接(链接603) {
   try {
-    if (链接603.startsWith(解码64('dmxlc3M6Ly8='))) {
+    if (链接603.startsWith(SCHEME_VLESS)) {
       const 网址602 = new URL(链接603);
       const 参数值601 = new URLSearchParams(网址602.search);
       return {
-        proto: 解码64('dmxlc3M='),
+        proto: PROTOCOL_VLESS,
         name: decodeURIComponent(网址602.hash.substring(1)) || 网址602.hostname + ':' + 网址602.port,
         uuid: 网址602.username,
-        server: 规范化值主机(网址602.hostname),
+        server: normalizeValueHost(网址602.hostname),
         port: parseInt(网址602.port) || 443,
-        tls: 参数值601.get('security') === 'tls' || 参数值601.get('security') === 解码64('cmVhbGl0eQ=='),
+        tls: 参数值601.get('security') === 'tls' || 参数值601.get('security') === TLS_REALITY,
         network: 参数值601.get('type') || 'ws',
         path: 参数值601.get('path') || '/?ed=2048',
-        host: 规范化值主机(参数值601.get('host') || 网址602.hostname),
-        sni: 规范化值主机(参数值601.get('sni') || 参数值601.get('host') || 网址602.hostname),
+        host: normalizeValueHost(参数值601.get('host') || 网址602.hostname),
+        sni: normalizeValueHost(参数值601.get('sni') || 参数值601.get('host') || 网址602.hostname),
         alpn: (参数值601.get('alpn') || '').split(',').map(字符串值600 => 字符串值600.trim()).filter(Boolean),
         fp: 参数值601.get('fp') || 'chrome',
         flow: 参数值601.get('flow') || '',
@@ -531,21 +311,21 @@ function 解析值链接(链接603) {
         ech: 参数值601.get('ech') || ''
       };
     }
-    if (链接603.startsWith(解码64('dHJvamFuOi8v'))) {
+    if (链接603.startsWith(SCHEME_TROJAN)) {
       const 网址599 = new URL(链接603);
       const 参数值 = new URLSearchParams(网址599.search);
       return {
-        proto: 解码64('dHJvamFu'),
+        proto: PROTOCOL_TROJAN,
         name: decodeURIComponent(网址599.hash.substring(1)) || 网址599.hostname + ':' + 网址599.port,
         password: decodeURIComponent(网址599.username),
         security: 参数值.get('security') || 'tls',
-        server: 规范化值主机(网址599.hostname),
+        server: normalizeValueHost(网址599.hostname),
         port: parseInt(网址599.port) || 443,
         tls: true,
         network: 参数值.get('type') || 'ws',
         path: 参数值.get('path') || '/?ed=2048',
-        host: 规范化值主机(参数值.get('host') || 网址599.hostname),
-        sni: 规范化值主机(参数值.get('sni') || 参数值.get('host') || 网址599.hostname),
+        host: normalizeValueHost(参数值.get('host') || 网址599.hostname),
+        sni: normalizeValueHost(参数值.get('sni') || 参数值.get('host') || 网址599.hostname),
         alpn: (参数值.get('alpn') || '').split(',').map(字符串值598 => 字符串值598.trim()).filter(Boolean),
         fp: 参数值.get('fp') || 'chrome',
         ech: 参数值.get('ech') || ''
@@ -557,76 +337,76 @@ function 解析值链接(链接603) {
 
 function 构建值节点行(数量值596) {
   const 行列表595 = [];
-  const 本地值594 = 规范化值主机(数量值596.server);
-  const 主机593 = 规范化值主机(数量值596.host) || 本地值594;
-  const 服务名称指示592 = 规范化值主机(数量值596.sni) || 主机593;
-  行列表595.push(`  - name: ${处理本地值622(数量值596.name)}`);
+  const 本地值594 = normalizeValueHost(数量值596.server);
+  const 主机593 = normalizeValueHost(数量值596.host) || 本地值594;
+  const 服务名称指示592 = normalizeValueHost(数量值596.sni) || 主机593;
+  行列表595.push(`  - name: ${quoteValueString(数量值596.name)}`);
   行列表595.push(`    type: ${数量值596.proto}`);
-  行列表595.push(`    server: ${处理本地值622(本地值594)}`);
+  行列表595.push(`    server: ${quoteValueString(本地值594)}`);
   行列表595.push(`    port: ${数量值596.port}`);
-  if (数量值596.proto === 解码64('dmxlc3M=')) {
+  if (数量值596.proto === PROTOCOL_VLESS) {
     行列表595.push(`    uuid: ${数量值596.uuid}`);
     行列表595.push(`    udp: true`);
     行列表595.push(`    tls: ${数量值596.tls ? 'true' : 'false'}`);
-    if (数量值596.flow) 行列表595.push(`    flow: ${处理本地值622(数量值596.flow)}`);
-    行列表595.push(`    client-fingerprint: ${处理本地值622(数量值596.fp || 'chrome')}`);
-  } else if (数量值596.proto === 解码64('dHJvamFu')) {
-    行列表595.push(`    password: ${处理本地值622(数量值596.password)}`);
+    if (数量值596.flow) 行列表595.push(`    flow: ${quoteValueString(数量值596.flow)}`);
+    行列表595.push(`    client-fingerprint: ${quoteValueString(数量值596.fp || 'chrome')}`);
+  } else if (数量值596.proto === PROTOCOL_TROJAN) {
+    行列表595.push(`    password: ${quoteValueString(数量值596.password)}`);
     行列表595.push(`    udp: true`);
-    行列表595.push(`    client-fingerprint: ${处理本地值622(数量值596.fp || 'chrome')}`);
+    行列表595.push(`    client-fingerprint: ${quoteValueString(数量值596.fp || 'chrome')}`);
   }
   if (数量值596.tls) {
-    行列表595.push(`    servername: ${处理本地值622(服务名称指示592)}`);
+    行列表595.push(`    servername: ${quoteValueString(服务名称指示592)}`);
     if (数量值596.alpn && 数量值596.alpn.length) {
-      行列表595.push(`    alpn: [${数量值596.alpn.map(甲值591 => 处理本地值622(甲值591)).join(', ')}]`);
+      行列表595.push(`    alpn: [${数量值596.alpn.map(甲值591 => quoteValueString(甲值591)).join(', ')}]`);
     }
     行列表595.push(`    skip-cert-verify: false`);
   }
   if (数量值596.network === 'ws' || 数量值596.network === 'xhttp') {
     行列表595.push(`    network: ws`);
     行列表595.push(`    ws-opts:`);
-    行列表595.push(`      path: ${处理本地值622(数量值596.path)}`);
+    行列表595.push(`      path: ${quoteValueString(数量值596.path)}`);
     行列表595.push(`      headers:`);
-    行列表595.push(`        Host: ${处理本地值622(主机593)}`);
+    行列表595.push(`        Host: ${quoteValueString(主机593)}`);
   } else if (数量值596.network === 'grpc') {
     行列表595.push(`    network: grpc`);
     行列表595.push(`    grpc-opts:`);
-    行列表595.push(`      grpc-service-name: ${处理本地值622(数量值596.path)}`);
+    行列表595.push(`      grpc-service-name: ${quoteValueString(数量值596.path)}`);
   }
   if (数量值596.ech) {
     const 加密客户端问候域名590 = 自定义加密客户端问候域名 || 'cloudflare-ech.com';
     行列表595.push(`    ech-opts:`);
     行列表595.push(`      enable: true`);
-    行列表595.push(`      query-server-name: ${处理本地值622(加密客户端问候域名590)}`);
+    行列表595.push(`      query-server-name: ${quoteValueString(加密客户端问候域名590)}`);
   }
   return 行列表595.join('\n');
 }
 
 function 生成值值589(链接列表588, 本地值587 = {}) {
-  const 节点列表586 = normalizeNodeNames(链接列表588.map(解析值链接).filter(数量值585 => 数量值585 && (数量值585.proto === 解码64('dmxlc3M=') || 数量值585.proto === 解码64('dHJvamFu'))));
+  const 节点列表586 = normalizeNodeNames(链接列表588.map(解析值链接).filter(数量值585 => 数量值585 && (数量值585.proto === PROTOCOL_VLESS || 数量值585.proto === PROTOCOL_TROJAN)));
   const 名称列表584 = 节点列表586.map(数量值583 => 数量值583.name);
   const 域名系统值582 = 自定义域名系统 || 'https://223.5.5.5/dns-query';
   const 头部581 = ['mixed-port: 7890', 'allow-lan: true', 'mode: rule', 'log-level: info', 'ipv6: true', 'external-controller: 127.0.0.1:9090', 'unified-delay: true', 'tcp-concurrent: true', 'geodata-mode: true', 'geo-auto-update: true', 'geo-update-interval: 24', 'geox-url:', '  geoip: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"', '  geosite: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"', '  mmdb: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb"', '  asn: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/GeoLite2-ASN.mmdb"', 'sniffer:', '  enable: true', '  force-dns-mapping: true', '  parse-pure-ip: true', '  sniff:', '    HTTP:', '      ports: [80, 8080-8880]', '      override-destination: true', '    TLS:', '      ports: [443, 8443]', '    QUIC:', '      ports: [443, 8443]', 'dns:', '  enable: true', '  listen: 0.0.0.0:1053', '  ipv6: true', '  enhanced-mode: fake-ip', '  fake-ip-range: 198.18.0.1/16', '  fake-ip-filter:', '    - "*.lan"', '    - "+.local"', '    - "+.market.xiaomi.com"', '    - "+.msftconnecttest.com"', '    - "+.msftncsi.com"', '    - "localhost.ptlogin2.qq.com"', '    - "+.srv.nintendo.net"', '    - "+.stun.playstation.net"', '    - "+.xboxlive.com"', '  default-nameserver:', '    - 223.5.5.5', '    - 119.29.29.29', '  nameserver:', `    - ${域名系统值582}`, '    - https://119.29.29.29/dns-query', '  fallback:', '    - https://1.1.1.1/dns-query', '    - https://8.8.8.8/dns-query', '  fallback-filter:', '    geoip: true', '    geoip-code: CN', '    ipcidr:', '      - 240.0.0.0/4', ''];
   const 值值580 = ['proxies:'];
   for (const 数量值579 of 节点列表586) 值值580.push(构建值节点行(数量值579));
-  const 节点仅 = 名称列表584.length ? 名称列表584.map(数量值578 => `      - ${处理本地值622(数量值578)}`).join('\n') : '      - DIRECT';
-  const 值值577 = [解码64('cHJveHktZ3JvdXBzOg=='), '  - name: "🚀 节点选择"', '    type: select', '    proxies:', '      - "♻️ 自动选择"', '      - "🎯 全球直连"', 节点仅, '  - name: "♻️ 自动选择"', '    type: url-test', '    url: https://www.gstatic.com/generate_204', '    interval: 300', '    tolerance: 50', '    lazy: true', '    proxies:', 节点仅, '  - name: "🌍 国外媒体"', '    type: select', '    proxies:', 处理值选择值(名称列表584), '  - name: "📺 哔哩哔哩"', '    type: select', '    proxies:', 处理值选择值(名称列表584, {
+  const 节点仅 = 名称列表584.length ? 名称列表584.map(数量值578 => `      - ${quoteValueString(数量值578)}`).join('\n') : '      - DIRECT';
+  const 值值577 = ["proxy-groups:", '  - name: "🚀 节点选择"', '    type: select', '    proxies:', '      - "♻️ 自动选择"', '      - "🎯 全球直连"', 节点仅, '  - name: "♻️ 自动选择"', '    type: url-test', '    url: https://www.gstatic.com/generate_204', '    interval: 300', '    tolerance: 50', '    lazy: true', '    proxies:', 节点仅, '  - name: "🌍 国外媒体"', '    type: select', '    proxies:', buildProxyGroupProxiesYaml(名称列表584), '  - name: "📺 哔哩哔哩"', '    type: select', '    proxies:', buildProxyGroupProxiesYaml(名称列表584, {
     directFirst: true
-  }), '  - name: "📹 油管视频"', '    type: select', '    proxies:', 处理值选择值(名称列表584, {
+  }), '  - name: "📹 油管视频"', '    type: select', '    proxies:', buildProxyGroupProxiesYaml(名称列表584, {
     extraGroups: ['🌍 国外媒体']
-  }), '  - name: "🎬 奈飞视频"', '    type: select', '    proxies:', 处理值选择值(名称列表584, {
+  }), '  - name: "🎬 奈飞视频"', '    type: select', '    proxies:', buildProxyGroupProxiesYaml(名称列表584, {
     extraGroups: ['🌍 国外媒体']
-  }), '  - name: "📲 电报信息"', '    type: select', '    proxies:', 处理值选择值(名称列表584), '  - name: "🌐 谷歌服务"', '    type: select', '    proxies:', 处理值选择值(名称列表584), '  - name: "🤖 OpenAI"', '    type: select', '    proxies:', 处理值选择值(名称列表584), '  - name: "Ⓜ️ 微软服务"', '    type: select', '    proxies:', 处理值选择值(名称列表584, {
+  }), '  - name: "📲 电报信息"', '    type: select', '    proxies:', buildProxyGroupProxiesYaml(名称列表584), '  - name: "🌐 谷歌服务"', '    type: select', '    proxies:', buildProxyGroupProxiesYaml(名称列表584), '  - name: "🤖 OpenAI"', '    type: select', '    proxies:', buildProxyGroupProxiesYaml(名称列表584), '  - name: "Ⓜ️ 微软服务"', '    type: select', '    proxies:', buildProxyGroupProxiesYaml(名称列表584, {
     directFirst: true
-  }), '  - name: "🍎 苹果服务"', '    type: select', '    proxies:', 处理值选择值(名称列表584, {
+  }), '  - name: "🍎 苹果服务"', '    type: select', '    proxies:', buildProxyGroupProxiesYaml(名称列表584, {
     directFirst: true
-  }), '  - name: "🎯 全球直连"', '    type: select', '    proxies:', '      - DIRECT', '  - name: "🛑 全球拦截"', '    type: select', '    proxies:', '      - REJECT', '      - DIRECT', '  - name: "🍃 应用净化"', '    type: select', '    proxies:', '      - REJECT', '      - DIRECT', '  - name: "🐟 漏网之鱼"', '    type: select', '    proxies:', 处理值选择值(名称列表584), ''];
+  }), '  - name: "🎯 全球直连"', '    type: select', '    proxies:', '      - DIRECT', '  - name: "🛑 全球拦截"', '    type: select', '    proxies:', '      - REJECT', '      - DIRECT', '  - name: "🍃 应用净化"', '    type: select', '    proxies:', '      - REJECT', '      - DIRECT', '  - name: "🐟 漏网之鱼"', '    type: select', '    proxies:', buildProxyGroupProxiesYaml(名称列表584), ''];
 
   // 规则源 - CDN: jsDelivr
-  const 值基础576 = 解码64('aHR0cHM6Ly9mYXN0bHkuanNkZWxpdnIubmV0L2doL0xveWFsc29sZGllci9jbGFzaC1ydWxlc0ByZWxlYXNl');
+  const 值基础576 = RULE_BASE_LOYALSOLDIER_CLASH;
   const 提供器 = (名称575, 本地值574) => [`  ${名称575}:`, `    type: http`, `    behavior: ${本地值574}`, `    url: "${值基础576}/${名称575}.txt"`, `    path: ./rulesets/loyalsoldier/${名称575}.txt`, `    interval: 86400`].join('\n');
-  const 规则值 = ['rule-providers:', 提供器('reject', 'domain'), 提供器('icloud', 'domain'), 提供器('apple', 'domain'), 提供器('google', 'domain'), 提供器(解码64('cHJveHk='), 'domain'), 提供器('direct', 'domain'), 提供器('private', 'domain'), 提供器('gfw', 'domain'), 提供器('greatfire', 'domain'), 提供器('tld-not-cn', 'domain'), 提供器('telegramcidr', 'ipcidr'), 提供器('cncidr', 'ipcidr'), 提供器('lancidr', 'ipcidr'), 提供器('applications', 'classical'), ''];
-  const 规则列表 = ['rules:', '  - DOMAIN-SUFFIX,acl4.ssr,🎯 全球直连', '  - DOMAIN-SUFFIX,local,🎯 全球直连', 解码64('ICAtIERPTUFJTixjbGFzaC5yYXpvcmQudG9wLPCfjq8g5YWo55CD55u06L+e'), '  - DOMAIN,yacd.haishan.me,🎯 全球直连', '  - DOMAIN,yacd.metacubex.one,🎯 全球直连', '  - DOMAIN,d.metacubex.one,🎯 全球直连', '  - DOMAIN-SUFFIX,googleapis.cn,🌐 谷歌服务', '  - DOMAIN-SUFFIX,gstatic.com,🌐 谷歌服务', '  - DOMAIN-SUFFIX,xn--ngstr-lra8j.com,🌐 谷歌服务', '  - DOMAIN-SUFFIX,googlevideo.com,📹 油管视频', '  - DOMAIN-SUFFIX,googleusercontent.com,🌐 谷歌服务', '  - DOMAIN-KEYWORD,youtube,📹 油管视频', '  - DOMAIN-SUFFIX,youtube.com,📹 油管视频', '  - DOMAIN-SUFFIX,youtu.be,📹 油管视频', '  - DOMAIN-KEYWORD,netflix,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxext.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxso.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxvideo.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflximg.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflximg.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,netflix.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,netflix.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,bilibili.com,📺 哔哩哔哩', '  - DOMAIN-SUFFIX,bilivideo.com,📺 哔哩哔哩', '  - DOMAIN-SUFFIX,hdslb.com,📺 哔哩哔哩', '  - DOMAIN-KEYWORD,openai,🤖 OpenAI', '  - DOMAIN-KEYWORD,chatgpt,🤖 OpenAI', '  - DOMAIN-SUFFIX,openai.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,chatgpt.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,oaistatic.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,oaiusercontent.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,anthropic.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,claude.ai,🤖 OpenAI', '  - DOMAIN-SUFFIX,perplexity.ai,🤖 OpenAI', '  - DOMAIN-SUFFIX,gemini.google.com,🤖 OpenAI', '  - RULE-SET,applications,🎯 全球直连', '  - RULE-SET,private,🎯 全球直连', '  - RULE-SET,reject,🛑 全球拦截', '  - RULE-SET,icloud,🍎 苹果服务', '  - RULE-SET,apple,🍎 苹果服务', '  - RULE-SET,google,🌐 谷歌服务', 解码64('ICAtIFJVTEUtU0VULHByb3h5LPCfmoAg6IqC54K56YCJ5oup'), '  - RULE-SET,gfw,🚀 节点选择', '  - RULE-SET,greatfire,🚀 节点选择', '  - RULE-SET,tld-not-cn,🚀 节点选择', '  - RULE-SET,direct,🎯 全球直连', '  - RULE-SET,lancidr,🎯 全球直连,no-resolve', '  - RULE-SET,cncidr,🎯 全球直连,no-resolve', '  - RULE-SET,telegramcidr,📲 电报信息,no-resolve', '  - GEOIP,LAN,🎯 全球直连,no-resolve', '  - GEOIP,CN,🎯 全球直连,no-resolve', '  - MATCH,🐟 漏网之鱼'];
+  const 规则值 = ['rule-providers:', 提供器('reject', 'domain'), 提供器('icloud', 'domain'), 提供器('apple', 'domain'), 提供器('google', 'domain'), 提供器("proxy", 'domain'), 提供器('direct', 'domain'), 提供器('private', 'domain'), 提供器('gfw', 'domain'), 提供器('greatfire', 'domain'), 提供器('tld-not-cn', 'domain'), 提供器('telegramcidr', 'ipcidr'), 提供器('cncidr', 'ipcidr'), 提供器('lancidr', 'ipcidr'), 提供器('applications', 'classical'), ''];
+  const 规则列表 = ['rules:', '  - DOMAIN-SUFFIX,acl4.ssr,🎯 全球直连', '  - DOMAIN-SUFFIX,local,🎯 全球直连', "  - DOMAIN,clash.razord.top,🎯 全球直连", '  - DOMAIN,yacd.haishan.me,🎯 全球直连', '  - DOMAIN,yacd.metacubex.one,🎯 全球直连', '  - DOMAIN,d.metacubex.one,🎯 全球直连', '  - DOMAIN-SUFFIX,googleapis.cn,🌐 谷歌服务', '  - DOMAIN-SUFFIX,gstatic.com,🌐 谷歌服务', '  - DOMAIN-SUFFIX,xn--ngstr-lra8j.com,🌐 谷歌服务', '  - DOMAIN-SUFFIX,googlevideo.com,📹 油管视频', '  - DOMAIN-SUFFIX,googleusercontent.com,🌐 谷歌服务', '  - DOMAIN-KEYWORD,youtube,📹 油管视频', '  - DOMAIN-SUFFIX,youtube.com,📹 油管视频', '  - DOMAIN-SUFFIX,youtu.be,📹 油管视频', '  - DOMAIN-KEYWORD,netflix,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxext.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxso.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxvideo.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflximg.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflximg.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,netflix.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,netflix.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,bilibili.com,📺 哔哩哔哩', '  - DOMAIN-SUFFIX,bilivideo.com,📺 哔哩哔哩', '  - DOMAIN-SUFFIX,hdslb.com,📺 哔哩哔哩', '  - DOMAIN-KEYWORD,openai,🤖 OpenAI', '  - DOMAIN-KEYWORD,chatgpt,🤖 OpenAI', '  - DOMAIN-SUFFIX,openai.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,chatgpt.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,oaistatic.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,oaiusercontent.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,anthropic.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,claude.ai,🤖 OpenAI', '  - DOMAIN-SUFFIX,perplexity.ai,🤖 OpenAI', '  - DOMAIN-SUFFIX,gemini.google.com,🤖 OpenAI', '  - RULE-SET,applications,🎯 全球直连', '  - RULE-SET,private,🎯 全球直连', '  - RULE-SET,reject,🛑 全球拦截', '  - RULE-SET,icloud,🍎 苹果服务', '  - RULE-SET,apple,🍎 苹果服务', '  - RULE-SET,google,🌐 谷歌服务', "  - RULE-SET,proxy,🚀 节点选择", '  - RULE-SET,gfw,🚀 节点选择', '  - RULE-SET,greatfire,🚀 节点选择', '  - RULE-SET,tld-not-cn,🚀 节点选择', '  - RULE-SET,direct,🎯 全球直连', '  - RULE-SET,lancidr,🎯 全球直连,no-resolve', '  - RULE-SET,cncidr,🎯 全球直连,no-resolve', '  - RULE-SET,telegramcidr,📲 电报信息,no-resolve', '  - GEOIP,LAN,🎯 全球直连,no-resolve', '  - GEOIP,CN,🎯 全球直连,no-resolve', '  - MATCH,🐟 漏网之鱼'];
   return [头部581.join('\n'), 值值580.join('\n'), '', 值值577.join('\n'), 规则值.join('\n'), 规则列表.join('\n'), ''].join('\n');
 }
 
@@ -634,48 +414,48 @@ function 生成值值数据对象(链接列表) {
   return JSON.stringify(buildSingboxConfig(链接列表.map(解析值链接), { dns: 自定义域名系统 }), null, 2);
 }
 
-const 值基础 = 解码64('aHR0cHM6Ly9mYXN0bHkuanNkZWxpdnIubmV0L2doL0FDTDRTU1IvQUNMNFNTUkBtYXN0ZXIvQ2xhc2g=');
+const 值基础 = RULE_BASE_ACL4SSR_CLASH;
 
 const 值规则 = 名称563 => `${值基础}/${名称563}.list`;
 
 function 生成值值562(链接列表561) {
-  const 节点列表560 = 链接列表561.map(解析值链接).filter(数量值559 => 数量值559 && 数量值559.proto === 解码64('dHJvamFu'));
+  const 节点列表560 = 链接列表561.map(解析值链接).filter(数量值559 => 数量值559 && 数量值559.proto === PROTOCOL_TROJAN);
   const 域名系统值558 = 自定义域名系统 || '223.5.5.5';
   const 名称列表557 = 节点列表560.map(数量值556 => 数量值556.name);
-  const 行列表555 = ['[General]', 'loglevel = notify', 'internet-test-url = http://www.apple.com/library/test/success.html', 解码64('cHJveHktdGVzdC11cmwgPSBodHRwOi8vd3d3LmdzdGF0aWMuY29tL2dlbmVyYXRlXzIwNA=='), 'test-timeout = 3', `dns-server = ${域名系统值558.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}, 119.29.29.29, system`, 'encrypted-dns-server = https://223.5.5.5/dns-query, https://1.12.12.12/dns-query', 'ipv6 = true', 'allow-wifi-access = false', 'wifi-access-http-port = 6152', 解码64('d2lmaS1hY2Nlc3Mtc29ja3M1LXBvcnQgPSA2MTUz'), 解码64('c2tpcC1wcm94eSA9IDEyNy4wLjAuMSwgMTkyLjE2OC4wLjAvMTYsIDEwLjAuMC4wLzgsIDE3Mi4xNi4wLjAvMTIsIGxvY2FsaG9zdCwgKi5sb2NhbCwgY2FwdGl2ZS5hcHBsZS5jb20='), 'exclude-simple-hostnames = true', 'show-error-page-for-reject = true', '', 解码64('W1Byb3h5XQ==')];
+  const 行列表555 = ['[General]', 'loglevel = notify', 'internet-test-url = http://www.apple.com/library/test/success.html', "proxy-test-url = http://www.gstatic.com/generate_204", 'test-timeout = 3', `dns-server = ${域名系统值558.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}, 119.29.29.29, system`, 'encrypted-dns-server = https://223.5.5.5/dns-query, https://1.12.12.12/dns-query', 'ipv6 = true', 'allow-wifi-access = false', 'wifi-access-http-port = 6152', "wifi-access-socks5-port = 6153", "skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, localhost, *.local, captive.apple.com", 'exclude-simple-hostnames = true', 'show-error-page-for-reject = true', '', "[Proxy]"];
   for (const 数量值554 of 节点列表560) {
     const 服务名称指示 = 数量值554.sni;
-    行列表555.push(`${数量值554.name} = ${解码64('dHJvamFu')}, ${数量值554.server}, ${数量值554.port}, password=${数量值554.password}, sni=${服务名称指示}, ws=true, ws-path=${数量值554.path}, ws-headers=Host:${数量值554.host}, skip-cert-verify=false, tfo=true`);
+    行列表555.push(`${数量值554.name} = ${PROTOCOL_TROJAN}, ${数量值554.server}, ${数量值554.port}, password=${数量值554.password}, sni=${服务名称指示}, ws=true, ws-path=${数量值554.path}, ws-headers=Host:${数量值554.host}, skip-cert-verify=false, tfo=true`);
   }
   if (!节点列表560.length) {
     行列表555.push('Direct = direct');
   }
   行列表555.push('');
-  行列表555.push(解码64('W1Byb3h5IEdyb3VwXQ=='));
+  行列表555.push("[Proxy Group]");
   const 列表553 = 名称列表557.length ? 名称列表557.join(', ') : 'DIRECT';
   行列表555.push(`🚀 节点选择 = select, 🎯 全球直连, ${列表553}`);
-  行列表555.push(`🌍 国外媒体 = select, ${处理值值列表(名称列表557)}`);
-  行列表555.push(`📺 哔哩哔哩 = select, ${处理值值列表(名称列表557, {
+  行列表555.push(`🌍 国外媒体 = select, ${buildProxyGroupInlineList(名称列表557)}`);
+  行列表555.push(`📺 哔哩哔哩 = select, ${buildProxyGroupInlineList(名称列表557, {
     directFirst: true
   })}`);
-  行列表555.push(`📹 油管视频 = select, ${处理值值列表(名称列表557, {
+  行列表555.push(`📹 油管视频 = select, ${buildProxyGroupInlineList(名称列表557, {
     extraGroups: ['🌍 国外媒体']
   })}`);
-  行列表555.push(`🎬 奈飞视频 = select, ${处理值值列表(名称列表557, {
+  行列表555.push(`🎬 奈飞视频 = select, ${buildProxyGroupInlineList(名称列表557, {
     extraGroups: ['🌍 国外媒体']
   })}`);
-  行列表555.push(`📲 电报信息 = select, ${处理值值列表(名称列表557)}`);
-  行列表555.push(`🌐 谷歌服务 = select, ${处理值值列表(名称列表557)}`);
-  行列表555.push(`🤖 OpenAI = select, ${处理值值列表(名称列表557)}`);
-  行列表555.push(`Ⓜ️ 微软服务 = select, ${处理值值列表(名称列表557, {
+  行列表555.push(`📲 电报信息 = select, ${buildProxyGroupInlineList(名称列表557)}`);
+  行列表555.push(`🌐 谷歌服务 = select, ${buildProxyGroupInlineList(名称列表557)}`);
+  行列表555.push(`🤖 OpenAI = select, ${buildProxyGroupInlineList(名称列表557)}`);
+  行列表555.push(`Ⓜ️ 微软服务 = select, ${buildProxyGroupInlineList(名称列表557, {
     directFirst: true
   })}`);
-  行列表555.push(`🍎 苹果服务 = select, ${处理值值列表(名称列表557, {
+  行列表555.push(`🍎 苹果服务 = select, ${buildProxyGroupInlineList(名称列表557, {
     directFirst: true
   })}`);
   行列表555.push(`🎯 全球直连 = select, DIRECT`);
   行列表555.push(`🛑 全球拦截 = select, REJECT, DIRECT`);
-  行列表555.push(`🐟 漏网之鱼 = select, ${处理值值列表(名称列表557)}`);
+  行列表555.push(`🐟 漏网之鱼 = select, ${buildProxyGroupInlineList(名称列表557)}`);
   行列表555.push('');
   行列表555.push('[Rule]');
   行列表555.push(`RULE-SET,${值规则('LocalAreaNetwork')},🎯 全球直连`);
@@ -697,8 +477,8 @@ function 生成值值562(链接列表561) {
   行列表555.push(`RULE-SET,${值规则('Spotify')},🌍 国外媒体`);
   行列表555.push(`RULE-SET,${值规则('TikTok')},🌍 国外媒体`);
   行列表555.push(`RULE-SET,${值规则('BiliBili')},📺 哔哩哔哩`);
-  行列表555.push(`RULE-SET,${值规则(解码64('UHJveHlNZWRpYQ=='))},🌍 国外媒体`);
-  行列表555.push(`RULE-SET,${值规则(解码64('UHJveHlHRldsaXN0'))},🚀 节点选择`);
+  行列表555.push(`RULE-SET,${值规则("ProxyMedia")},🌍 国外媒体`);
+  行列表555.push(`RULE-SET,${值规则("ProxyGFWlist")},🚀 节点选择`);
   行列表555.push(`RULE-SET,${值规则('ChinaDomain')},🎯 全球直连`);
   行列表555.push(`RULE-SET,${值规则('ChinaCompanyIp')},🎯 全球直连`);
   行列表555.push(`RULE-SET,${值规则('ChinaIp')},🎯 全球直连`);
@@ -708,64 +488,64 @@ function 生成值值562(链接列表561) {
 }
 
 function 生成值值552(链接列表551) {
-  const 节点列表550 = 链接列表551.map(解析值链接).filter(数量值549 => 数量值549 && (数量值549.proto === 解码64('dmxlc3M=') || 数量值549.proto === 解码64('dHJvamFu')));
+  const 节点列表550 = 链接列表551.map(解析值链接).filter(数量值549 => 数量值549 && (数量值549.proto === PROTOCOL_VLESS || 数量值549.proto === PROTOCOL_TROJAN));
   const 名称列表548 = 节点列表550.map(数量值547 => 数量值547.name);
-  const 行列表546 = ['[General]', 'ip-mode = dual', `dns-server = ${(自定义域名系统 || '223.5.5.5').replace(/^https?:\/\//, '').replace(/\/.*$/, '')},119.29.29.29,system`, 'doh-server = https://223.5.5.5/dns-query, https://1.12.12.12/dns-query', 解码64('YWxsb3ctdWRwLXByb3h5ID0gdHJ1ZQ=='), 'allow-wifi-access = false', 'sni-sniffing = true', 解码64('c2tpcC1wcm94eSA9IDEyNy4wLjAuMSwxOTIuMTY4LjAuMC8xNiwxMC4wLjAuMC84LDE3Mi4xNi4wLjAvMTIsbG9jYWxob3N0LCoubG9jYWwsY2FwdGl2ZS5hcHBsZS5jb20='), 'bypass-tun = 10.0.0.0/8,100.64.0.0/10,127.0.0.0/8,169.254.0.0/16,172.16.0.0/12,192.0.0.0/24,192.0.2.0/24,192.88.99.0/24,192.168.0.0/16,198.51.100.0/24,203.0.113.0/24,224.0.0.0/4,255.255.255.255/32', '', 解码64('W1Byb3h5XQ==')];
+  const 行列表546 = ['[General]', 'ip-mode = dual', `dns-server = ${(自定义域名系统 || '223.5.5.5').replace(/^https?:\/\//, '').replace(/\/.*$/, '')},119.29.29.29,system`, 'doh-server = https://223.5.5.5/dns-query, https://1.12.12.12/dns-query', "allow-udp-proxy = true", 'allow-wifi-access = false', 'sni-sniffing = true', "skip-proxy = 127.0.0.1,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,localhost,*.local,captive.apple.com", 'bypass-tun = 10.0.0.0/8,100.64.0.0/10,127.0.0.0/8,169.254.0.0/16,172.16.0.0/12,192.0.0.0/24,192.0.2.0/24,192.88.99.0/24,192.168.0.0/16,198.51.100.0/24,203.0.113.0/24,224.0.0.0/4,255.255.255.255/32', '', "[Proxy]"];
   for (const 数量值545 of 节点列表550) {
-    if (数量值545.proto === 解码64('dmxlc3M=')) {
+    if (数量值545.proto === PROTOCOL_VLESS) {
       const 部分列表544 = [`${数量值545.server}`, `${数量值545.port}`, `udp=true`, `username=${数量值545.uuid}`, `transport=ws`, `path=${数量值545.path}`, `host=${数量值545.host}`, `over-tls=${数量值545.tls ? 'true' : 'false'}`];
       if (数量值545.tls) {
         部分列表544.push(`tls-name=${数量值545.sni}`);
         if (数量值545.alpn && 数量值545.alpn.length) 部分列表544.push(`alpn=${数量值545.alpn.join(':')}`);
         部分列表544.push(`skip-cert-verify=false`);
       }
-      行列表546.push(`${数量值545.name} = ${解码64('dmxlc3M=')},${部分列表544.join(',')}`);
+      行列表546.push(`${数量值545.name} = ${PROTOCOL_VLESS},${部分列表544.join(',')}`);
     } else {
       const 部分列表543 = [`${数量值545.server}`, `${数量值545.port}`, `password=${数量值545.password}`, `transport=ws`, `path=${数量值545.path}`, `host=${数量值545.host}`, `over-tls=true`, `tls-name=${数量值545.sni}`];
       if (数量值545.alpn && 数量值545.alpn.length) 部分列表543.push(`alpn=${数量值545.alpn.join(':')}`);
       部分列表543.push(`skip-cert-verify=false`);
-      行列表546.push(`${数量值545.name} = ${解码64('dHJvamFu')},${部分列表543.join(',')}`);
+      行列表546.push(`${数量值545.name} = ${PROTOCOL_TROJAN},${部分列表543.join(',')}`);
     }
   }
   行列表546.push('');
-  行列表546.push(解码64('W1Byb3h5IEdyb3VwXQ=='));
+  行列表546.push("[Proxy Group]");
   const 列表542 = 名称列表548.length ? 名称列表548.join(',') : 'DIRECT';
   行列表546.push(`🚀 节点选择 = select,🎯 全球直连,${列表542}`);
-  行列表546.push(`🌍 国外媒体 = select,${处理值值列表(名称列表548, {
+  行列表546.push(`🌍 国外媒体 = select,${buildProxyGroupInlineList(名称列表548, {
     compact: true
   })}`);
-  行列表546.push(`📺 哔哩哔哩 = select,${处理值值列表(名称列表548, {
+  行列表546.push(`📺 哔哩哔哩 = select,${buildProxyGroupInlineList(名称列表548, {
     directFirst: true,
     compact: true
   })}`);
-  行列表546.push(`📹 油管视频 = select,${处理值值列表(名称列表548, {
+  行列表546.push(`📹 油管视频 = select,${buildProxyGroupInlineList(名称列表548, {
     extraGroups: ['🌍 国外媒体'],
     compact: true
   })}`);
-  行列表546.push(`🎬 奈飞视频 = select,${处理值值列表(名称列表548, {
+  行列表546.push(`🎬 奈飞视频 = select,${buildProxyGroupInlineList(名称列表548, {
     extraGroups: ['🌍 国外媒体'],
     compact: true
   })}`);
-  行列表546.push(`📲 电报信息 = select,${处理值值列表(名称列表548, {
+  行列表546.push(`📲 电报信息 = select,${buildProxyGroupInlineList(名称列表548, {
     compact: true
   })}`);
-  行列表546.push(`🌐 谷歌服务 = select,${处理值值列表(名称列表548, {
+  行列表546.push(`🌐 谷歌服务 = select,${buildProxyGroupInlineList(名称列表548, {
     compact: true
   })}`);
-  行列表546.push(`🤖 OpenAI = select,${处理值值列表(名称列表548, {
+  行列表546.push(`🤖 OpenAI = select,${buildProxyGroupInlineList(名称列表548, {
     compact: true
   })}`);
-  行列表546.push(`Ⓜ️ 微软服务 = select,${处理值值列表(名称列表548, {
+  行列表546.push(`Ⓜ️ 微软服务 = select,${buildProxyGroupInlineList(名称列表548, {
     directFirst: true,
     compact: true
   })}`);
-  行列表546.push(`🍎 苹果服务 = select,${处理值值列表(名称列表548, {
+  行列表546.push(`🍎 苹果服务 = select,${buildProxyGroupInlineList(名称列表548, {
     directFirst: true,
     compact: true
   })}`);
   行列表546.push(`🎯 全球直连 = select,DIRECT`);
   行列表546.push(`🛑 全球拦截 = select,REJECT,DIRECT`);
-  行列表546.push(`🐟 漏网之鱼 = select,${处理值值列表(名称列表548, {
+  行列表546.push(`🐟 漏网之鱼 = select,${buildProxyGroupInlineList(名称列表548, {
     compact: true
   })}`);
   行列表546.push('');
@@ -785,8 +565,8 @@ function 生成值值552(链接列表551) {
   行列表546.push(`${值规则('Spotify')}, policy=🌍 国外媒体, tag=Spotify, enabled=true`);
   行列表546.push(`${值规则('TikTok')}, policy=🌍 国外媒体, tag=TikTok, enabled=true`);
   行列表546.push(`${值规则('BiliBili')}, policy=📺 哔哩哔哩, tag=哔哩哔哩, enabled=true`);
-  行列表546.push(`${值规则(解码64('UHJveHlNZWRpYQ=='))}, policy=🌍 国外媒体, tag=${解码64('5Luj55CG5aqS5L2T')}, enabled=true`);
-  行列表546.push(`${值规则(解码64('UHJveHlHRldsaXN0'))}, policy=🚀 节点选择, tag=${解码64('5Luj55CG5YiX6KGo')}, enabled=true`);
+  行列表546.push(`${值规则("ProxyMedia")}, policy=🌍 国外媒体, tag=${"代理媒体"}, enabled=true`);
+  行列表546.push(`${值规则("ProxyGFWlist")}, policy=🚀 节点选择, tag=${"代理列表"}, enabled=true`);
   行列表546.push(`${值规则('ChinaDomain')}, policy=🎯 全球直连, tag=中国域名, enabled=true`);
   行列表546.push(`${值规则('ChinaIp')}, policy=🎯 全球直连, tag=中国IP, enabled=true`);
   行列表546.push('');
@@ -797,47 +577,47 @@ function 生成值值552(链接列表551) {
 }
 
 function 生成值值(链接列表541) {
-  const 节点列表 = 链接列表541.map(解析值链接).filter(数量值540 => 数量值540 && (数量值540.proto === 解码64('dmxlc3M=') || 数量值540.proto === 解码64('dHJvamFu')));
+  const 节点列表 = 链接列表541.map(解析值链接).filter(数量值540 => 数量值540 && (数量值540.proto === PROTOCOL_VLESS || 数量值540.proto === PROTOCOL_TROJAN));
   const 名称列表 = 节点列表.map(数量值539 => 数量值539.name);
-  const 圈叉基础配置 = 解码64('aHR0cHM6Ly9mYXN0bHkuanNkZWxpdnIubmV0L2doL2JsYWNrbWF0cml4Ny9pb3NfcnVsZV9zY3JpcHRAbWFzdGVyL3J1bGUvUXVhbnR1bXVsdFg=');
+  const 圈叉基础配置 = RULE_BASE_QUANTUMULTX;
   const 行列表538 = ['[general]', 'network_check_url=http://www.gstatic.com/generate_204', 'server_check_url=http://www.gstatic.com/generate_204', 'profile_img_url=https://fastly.jsdelivr.net/gh/byJoey/cfnew@main/snippets/logo.png', 'dns_exclusion_list=*.cmpassport.com, *.jegotrip.com.cn, *.icloud.com, *.icloud.com.cn, *.apple.com, *.weibo.com, *.qq.com', 'running_mode_trigger=filter', '', '[dns]', `server=${(自定义域名系统 || '223.5.5.5').replace(/^https?:\/\//, '').replace(/\/.*$/, '')}`, 'server=119.29.29.29', 'server=https://223.5.5.5/dns-query', 'server=https://1.12.12.12/dns-query', '', '[server_local]'];
   for (const 数量值537 of 节点列表) {
-    if (数量值537.proto === 解码64('dmxlc3M=')) {
+    if (数量值537.proto === PROTOCOL_VLESS) {
       const 部分列表536 = [`${数量值537.server}:${数量值537.port}`, `method=none`, `password=${数量值537.uuid}`, `obfs=${数量值537.tls ? 'wss' : 'ws'}`, `obfs-host=${数量值537.host}`, `obfs-uri=${数量值537.path}`];
       if (数量值537.tls) 部分列表536.push(`tls-verification=true`, `tls13=true`);
       部分列表536.push(`tag=${数量值537.name}`);
-      行列表538.push(`${解码64('dmxlc3M=')}=${部分列表536.join(', ')}`);
+      行列表538.push(`${PROTOCOL_VLESS}=${部分列表536.join(', ')}`);
     } else {
       const 部分列表535 = [`${数量值537.server}:${数量值537.port}`, `password=${数量值537.password}`, `over-tls=true`, `tls-host=${数量值537.sni}`, `obfs=wss`, `obfs-host=${数量值537.host}`, `obfs-uri=${数量值537.path}`, `tls-verification=true`, `tag=${数量值537.name}`];
-      行列表538.push(`${解码64('dHJvamFu')}=${部分列表535.join(', ')}`);
+      行列表538.push(`${PROTOCOL_TROJAN}=${部分列表535.join(', ')}`);
     }
   }
   行列表538.push('');
   行列表538.push('[policy]');
   const 列表534 = 名称列表.length ? 名称列表.join(', ') : 'direct';
-  行列表538.push(`static=🚀 节点选择, ${列表534}, direct, img-url=${解码64('aHR0cHM6Ly9mYXN0bHkuanNkZWxpdnIubmV0L2doL0tvb2xzb24vUXVyZUBtYXN0ZXIvSWNvblNldC9Db2xvci9Qcm94eS5wbmc=')}`);
-  行列表538.push(`static=🌍 国外媒体, ${处理值值列表(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/ForeignMedia.png`);
-  行列表538.push(`static=📺 哔哩哔哩, ${处理值值列表(名称列表, {
+  行列表538.push(`static=🚀 节点选择, ${列表534}, direct, img-url=${ICON_PROXY_PNG}`);
+  行列表538.push(`static=🌍 国外媒体, ${buildProxyGroupInlineList(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/ForeignMedia.png`);
+  行列表538.push(`static=📺 哔哩哔哩, ${buildProxyGroupInlineList(名称列表, {
     directFirst: true
   })}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/bilibili.png`);
-  行列表538.push(`static=📹 油管视频, ${处理值值列表(名称列表, {
+  行列表538.push(`static=📹 油管视频, ${buildProxyGroupInlineList(名称列表, {
     extraGroups: ['🌍 国外媒体']
   })}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/YouTube.png`);
-  行列表538.push(`static=🎬 奈飞视频, ${处理值值列表(名称列表, {
+  行列表538.push(`static=🎬 奈飞视频, ${buildProxyGroupInlineList(名称列表, {
     extraGroups: ['🌍 国外媒体']
   })}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Netflix.png`);
-  行列表538.push(`static=📲 电报信息, ${处理值值列表(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Telegram.png`);
-  行列表538.push(`static=🌐 谷歌服务, ${处理值值列表(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Google.png`);
-  行列表538.push(`static=🤖 OpenAI, ${处理值值列表(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/ChatGPT.png`);
-  行列表538.push(`static=Ⓜ️ 微软服务, ${处理值值列表(名称列表, {
+  行列表538.push(`static=📲 电报信息, ${buildProxyGroupInlineList(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Telegram.png`);
+  行列表538.push(`static=🌐 谷歌服务, ${buildProxyGroupInlineList(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Google.png`);
+  行列表538.push(`static=🤖 OpenAI, ${buildProxyGroupInlineList(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/ChatGPT.png`);
+  行列表538.push(`static=Ⓜ️ 微软服务, ${buildProxyGroupInlineList(名称列表, {
     directFirst: true
   })}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Microsoft.png`);
-  行列表538.push(`static=🍎 苹果服务, ${处理值值列表(名称列表, {
+  行列表538.push(`static=🍎 苹果服务, ${buildProxyGroupInlineList(名称列表, {
     directFirst: true
   })}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Apple.png`);
   行列表538.push(`static=🎯 全球直连, direct, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Direct.png`);
   行列表538.push(`static=🛑 全球拦截, reject, direct, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Advertising.png`);
-  行列表538.push(`static=🐟 漏网之鱼, ${处理值值列表(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Final.png`);
+  行列表538.push(`static=🐟 漏网之鱼, ${buildProxyGroupInlineList(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Final.png`);
   行列表538.push('');
   行列表538.push('[filter_remote]');
   行列表538.push(`${圈叉基础配置}/Lan/Lan.list, tag=局域网, force-policy=🎯 全球直连, update-interval=86400, opt-parser=false, enabled=true`);
@@ -863,13 +643,13 @@ function 生成值值(链接列表541) {
   return 行列表538.join('\n');
 }
 
-const 家宽节点源 = 解码64('aHR0cHM6Ly93d3cudnBuZ2F0ZS5uZXQvYXBpL2lwaG9uZS8=');
+const 家宽节点源 = VPNGATE_API_URL;
 
-const 家宽节点类型 = 解码64('b3BlbnZwbg==');
+const 家宽节点类型 = NODE_TYPE_OPENVPN;
 
-const 家宽前置字段 = 解码64('ZGlhbGVyLXByb3h5');
+const 家宽前置字段 = VPNGATE_DIALER_PROXY_FIELD;
 
-const 家宽机房前缀 = 解码64('cHVibGljLXZwbg==');
+const 家宽机房前缀 = VPNGATE_PUBLIC_PREFIX;
 
 const 家宽机房网段 = '219.100.37.';
 
@@ -900,8 +680,8 @@ const 家宽前段长度 = 6000;
 
 function 解家宽配置(配置64, 整条 = false) {
   const 干净 = 配置64.replace(/\s/g, '');
-  if (整条 || 干净.length <= 家宽前段长度) return 解码64(干净);
-  return 解码64(干净.slice(0, 家宽前段长度));
+  if (整条 || 干净.length <= 家宽前段长度) return decodeBase64(干净);
+  return decodeBase64(干净.slice(0, 家宽前段长度));
 }
 
 function 解析家宽清单(原文) {
@@ -992,7 +772,7 @@ async function 生成家宽链式值(链接列表) {
   const 家宽手选 = '\ud83c\udfe0 家宽节点';
   const 节点选择 = '\ud83d\ude80 节点选择';
   const 全部前置 = 链接列表.map(解析值链接)
-    .filter(项 => 项 && (项.proto === 解码64('dmxlc3M=') || 项.proto === 解码64('dHJvamFu')));
+    .filter(项 => 项 && (项.proto === PROTOCOL_VLESS || 项.proto === PROTOCOL_TROJAN));
   // 落地隧道的握手特征很明显，前置用明文会被一眼认出来，有 TLS 节点就只用 TLS 的
   const 加密前置 = 全部前置.filter(项 => 项.tls);
   const 前置节点 = 加密前置.length ? 加密前置 : 全部前置;
@@ -1060,7 +840,7 @@ async function 生成家宽链式值(链接列表) {
   // 自动组按速度排，决定回落顺序；手选组按国家排，翻起来好找
   const 按速度 = 家宽项.map(项 => 项.名称);
   const 按国家 = 家宽项.slice().sort((甲, 乙) => 甲.国家 === 乙.国家 ? 0 : (甲.国家 < 乙.国家 ? -1 : 1)).map(项 => 项.名称);
-  const 分组段 = [解码64('cHJveHktZ3JvdXBzOg==')];
+  const 分组段 = ["proxy-groups:"];
   if (前置名称.length) {
     分组段.push('  - name: "' + 前置组名 + '"', '    type: url-test',
       '    url: https://www.gstatic.com/generate_204', '    interval: 300', '    tolerance: 50',
@@ -1089,14 +869,14 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
   const 最终链接列表 = [];
   const 工作器域名504 = 网址505.hostname;
   const 目标503 = 网址505.searchParams.get('target') || 'base64';
-  const 家宽目标 = ['vg', 'jk', 解码64('amlha3Vhbg==')].includes(目标503.toLowerCase());
+  const 家宽目标 = ['vg', 'jk', TARGET_JIAKUAN].includes(目标503.toLowerCase());
   if (家宽目标 && !启用家宽链式) {
     return new Response('家宽链式没开。去配置管理勾上「开启家宽链式」，或者加环境变量 jk=yes。', {
       status: 403,
       headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }
     });
   }
-  const 别名命名器502 = 创建值节点命名器(false);
+  const 别名命名器502 = createNodeNamer(false);
 
   // 如果启用了ECH，使用自定义值
   let 加密客户端问候配置501 = null;
@@ -1134,12 +914,12 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
         if (!当前工作器地区) {
           当前工作器地区 = 'CF';
         }
-        const 值备用地址494 = await 获取值备用地址(当前工作器地区);
+        const 值备用地址494 = await pickFallbackAddress(当前工作器地区, 启用地区匹配, 备用地址列表);
         if (值备用地址494) {
           回退地址 = 值备用地址494.domain + ':' + 值备用地址494.port;
           const 备用列表493 = [{
             ip: 值备用地址494.domain,
-            isp: 解码64('UHJveHlJUC0=') + 当前工作器地区
+            isp: PROXY_IP_PREFIX + 当前工作器地区
           }];
           await 添加节点列表来源列表(备用列表493);
         } else {
@@ -1184,12 +964,12 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
           if (!当前工作器地区) {
             当前工作器地区 = 'CF';
           }
-          const 值备用地址488 = await 获取值备用地址(当前工作器地区);
+          const 值备用地址488 = await pickFallbackAddress(当前工作器地区, 启用地区匹配, 备用地址列表);
           if (值备用地址488) {
             回退地址 = 值备用地址488.domain + ':' + 值备用地址488.port;
             const 备用列表487 = [{
               ip: 值备用地址488.domain,
-              isp: 解码64('UHJveHlJUC0=') + 当前工作器地区
+              isp: PROXY_IP_PREFIX + 当前工作器地区
             }];
             await 添加节点列表来源列表(备用列表487);
           }
@@ -1214,12 +994,12 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
         if (!当前工作器地区) {
           当前工作器地区 = 'CF';
         }
-        const 值备用地址485 = await 获取值备用地址(当前工作器地区);
+        const 值备用地址485 = await pickFallbackAddress(当前工作器地区, 启用地区匹配, 备用地址列表);
         if (值备用地址485) {
           回退地址 = 值备用地址485.domain + ':' + 值备用地址485.port;
           const 备用列表 = [{
             ip: 值备用地址485.domain,
-            isp: 解码64('UHJveHlJUC0=') + 当前工作器地区
+            isp: PROXY_IP_PREFIX + 当前工作器地区
           }];
           await 添加节点列表来源列表(备用列表);
         }
@@ -1228,24 +1008,24 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
   }
   if (最终链接列表.length === 0) {
     const 错误备注 = "所有节点获取失败";
-    const 协议484 = atob('dmxlc3M=');
+    const 协议484 = PROTOCOL_VLESS;
     const 错误链接 = `${协议484}://00000000-0000-0000-0000-000000000000@127.0.0.1:80?encryption=none&security=none&type=ws&host=error.com&path=%2F#${encodeURIComponent(错误备注)}`;
     最终链接列表.push(错误链接);
   }
   let 订阅内容;
   let 内容类型483 = 'text/plain; charset=utf-8';
   switch (目标503.toLowerCase()) {
-    case atob('Y2xhc2g='):
-    case atob('Y2xhc2hy'):
-    case 解码64('c3Rhc2g='):
+    case FORMAT_CLASH:
+    case FORMAT_CLASHR:
+    case FORMAT_STASH:
     case 'meta':
-    case 解码64('Y2xhc2htZXRh'):
+    case FORMAT_CLASH_META:
       订阅内容 = 生成值值589(最终链接列表);
       内容类型483 = 'text/yaml; charset=utf-8';
       break;
     case 'vg':
     case 'jk':
-    case 解码64('amlha3Vhbg=='):
+    case TARGET_JIAKUAN:
       try {
         订阅内容 = await 生成家宽链式值(最终链接列表);
       } catch (错误) {
@@ -1256,33 +1036,33 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
       }
       内容类型483 = 'text/yaml; charset=utf-8';
       break;
-    case atob('c3VyZ2U='):
-    case atob('c3VyZ2Uy'):
-    case atob('c3VyZ2Uz'):
-    case atob('c3VyZ2U0'):
+    case FORMAT_SURGE:
+    case FORMAT_SURGE2:
+    case FORMAT_SURGE3:
+    case FORMAT_SURGE4:
       订阅内容 = 生成值值562(最终链接列表);
       内容类型483 = 'text/plain; charset=utf-8';
       break;
-    case atob('cXVhbnR1bXVsdA=='):
-    case atob('cXVhbng='):
-    case 解码64('cXVhbng='):
+    case FORMAT_QUANTUMULT:
+    case FORMAT_QUANX:
+    case FORMAT_QUANX:
       订阅内容 = 生成值值(最终链接列表);
       内容类型483 = 'text/plain; charset=utf-8';
       break;
-    case atob('c3M='):
-    case atob('c3Ny'):
+    case FORMAT_SS:
+    case FORMAT_SSR:
       订阅内容 = btoa(最终链接列表.join('\n'));
       break;
-    case atob('djJyYXk='):
+    case FORMAT_V2RAY:
       订阅内容 = btoa(最终链接列表.join('\n'));
       break;
-    case atob('bG9vbg=='):
+    case FORMAT_LOON:
       订阅内容 = 生成值值552(最终链接列表);
       内容类型483 = 'text/plain; charset=utf-8';
       break;
-    case atob('c2luZ2JveA=='):
-    case 解码64('c2luZy1ib3g='):
-    case 解码64('c2luZ2JveA=='):
+    case FORMAT_SINGBOX:
+    case FORMAT_SING_BOX:
+    case FORMAT_SINGBOX:
       订阅内容 = 生成值值数据对象(最终链接列表);
       内容类型483 = 'application/json; charset=utf-8';
       break;
@@ -1314,8 +1094,8 @@ function 生成链接列表来源源(列表482, 用户481, 工作器域名480, �
   const 默认超文本值473 = 禁用非传输层安全 ? [] : [80];
   const 链接列表472 = [];
   const 网页套接字路径471 = '/?ed=2048';
-  const 协议470 = atob('dmxlc3M=');
-  const 制作节点名称469 = 别名命名器477 || 创建值节点命名器(跳过编号478);
+  const 协议470 = PROTOCOL_VLESS;
+  const 制作节点名称469 = 别名命名器477 || createNodeNamer(跳过编号478);
   for (const 项目468 of 列表482) {
     const 安全地址467 = 项目468.ip.includes(':') ? `[${项目468.ip}]` : 项目468.ip;
     let 值值生成466 = [];
@@ -1370,7 +1150,7 @@ function 生成链接列表来源源(列表482, 用户481, 工作器域名480, �
           host: 工作器域名480,
           path: 网页套接字路径471
         });
-        处理值应用层协议协商值(网页套接字参数459);
+        applyAlpnParam(网页套接字参数459, 自定义应用层协议协商);
 
         // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
         if (启用加密客户端问候) {
@@ -1402,7 +1182,7 @@ async function 生成木马链接列表来源源(列表455, 用户454, 工作器
   const 链接列表447 = [];
   const 网页套接字路径446 = '/?ed=2048';
   const 密码445 = 传输路径 || 用户454;
-  const 制作节点名称444 = 别名命名器450 || 创建值节点命名器(跳过编号451);
+  const 制作节点名称444 = 别名命名器450 || createNodeNamer(跳过编号451);
   for (const 项目443 of 列表455) {
     const 安全地址442 = 项目443.ip.includes(':') ? `[${项目443.ip}]` : 项目443.ip;
     let 值值生成 = [];
@@ -1454,7 +1234,7 @@ async function 生成木马链接列表来源源(列表455, 用户454, 工作器
           host: 工作器域名453,
           path: 网页套接字路径446
         });
-        处理值应用层协议协商值(网页套接字参数436);
+        applyAlpnParam(网页套接字参数436, 自定义应用层协议协商);
 
         // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
         if (启用加密客户端问候) {
@@ -1462,7 +1242,7 @@ async function 生成木马链接列表来源源(列表455, 用户454, 工作器
           const 加密客户端问候域名434 = 自定义加密客户端问候域名 || 'cloudflare-ech.com';
           网页套接字参数436.set('ech', `${加密客户端问候域名434}+${域名系统值435}`);
         }
-        链接列表447.push(`${atob('dHJvamFuOi8v')}${密码445}@${安全地址442}:${端口438}?${网页套接字参数436.toString()}#${encodeURIComponent(网页套接字节点名称437)}`);
+        链接列表447.push(`${SCHEME_TROJAN}${密码445}@${安全地址442}:${端口438}?${网页套接字参数436.toString()}#${encodeURIComponent(网页套接字节点名称437)}`);
       } else {
         const 网页套接字参数 = new URLSearchParams({
           security: 'none',
@@ -1470,7 +1250,7 @@ async function 生成木马链接列表来源源(列表455, 用户454, 工作器
           host: 工作器域名453,
           path: 网页套接字路径446
         });
-        链接列表447.push(`${atob('dHJvamFuOi8v')}${密码445}@${安全地址442}:${端口438}?${网页套接字参数.toString()}#${encodeURIComponent(网页套接字节点名称437)}`);
+        链接列表447.push(`${SCHEME_TROJAN}${密码445}@${安全地址442}:${端口438}?${网页套接字参数.toString()}#${encodeURIComponent(网页套接字节点名称437)}`);
       }
     }
   }
@@ -1487,16 +1267,16 @@ async function 获取值地址列表() {
     bgp: '多线',
     ipv6: 'IPv6'
   };
-  const 值4已启用 = 获取配置值('ipv4', '') === '' || 获取配置值('ipv4', 'yes') !== 'no';
-  const 值6已启用 = 获取配置值('ipv6', '') === '' || 获取配置值('ipv6', 'yes') !== 'no';
-  const 值值432 = 获取配置值('ispMobile', '') === '' || 获取配置值('ispMobile', 'yes') !== 'no';
-  const 值值431 = 获取配置值('ispUnicom', '') === '' || 获取配置值('ispUnicom', 'yes') !== 'no';
-  const 值值430 = 获取配置值('ispTelecom', '') === '' || 获取配置值('ispTelecom', 'yes') !== 'no';
+  const 值4已启用 = getConfigValue(键值配置, 'ipv4', '') === '' || getConfigValue(键值配置, 'ipv4', 'yes') !== 'no';
+  const 值6已启用 = getConfigValue(键值配置, 'ipv6', '') === '' || getConfigValue(键值配置, 'ipv6', 'yes') !== 'no';
+  const 值值432 = getConfigValue(键值配置, 'ispMobile', '') === '' || getConfigValue(键值配置, 'ispMobile', 'yes') !== 'no';
+  const 值值431 = getConfigValue(键值配置, 'ispUnicom', '') === '' || getConfigValue(键值配置, 'ispUnicom', 'yes') !== 'no';
+  const 值值430 = getConfigValue(键值配置, 'ispTelecom', '') === '' || getConfigValue(键值配置, 'ispTelecom', 'yes') !== 'no';
   try {
     const 时间戳434 = String(Date.now());
-    const 内层摘要434 = await 计算值摘要(解码64('RGRsVHh0TjBzVU91'));
-    const 请求密钥434 = await 计算值摘要(内层摘要434 + 解码64('NzBjbG91ZGZsYXJlYXBpa2V5') + 时间戳434);
-    const 响应434 = await fetch(`${解码64('aHR0cHM6Ly9hcGkudW91aW4uY29tL2luZGV4LnBocC9pbmRleC9DbG91ZGZsYXJl')}?key=${请求密钥434}&time=${时间戳434}`, {
+    const 内层摘要434 = await 计算值摘要(REQUEST_SIGN_INNER_SALT);
+    const 请求密钥434 = await 计算值摘要(内层摘要434 + REQUEST_SIGN_OUTER_SALT + 时间戳434);
+    const 响应434 = await fetch(`${CLOUDFLARE_IP_API_URL}?key=${请求密钥434}&time=${时间戳434}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0'
       }
@@ -1517,7 +1297,7 @@ async function 获取值地址列表() {
       const 分组434 = 分组集合434[分组名434];
       const 条目列表434 = 分组434 && Array.isArray(分组434.info) ? 分组434.info : [];
       for (const 条目434 of 条目列表434) {
-        const 地址434 = 规范化节点主机(条目434 && 条目434.ip);
+        const 地址434 = normalizeNodeHost(条目434 && 条目434.ip);
         if (!地址434) continue;
         结果列表433.push({
           isp: 线路名434,
@@ -1608,7 +1388,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
   const 语言值 = 是否值236 ? 'fa-IR' : 'zh-CN';
   const 本地值235 = {
     zh: {
-      title: 解码64('6K6i6ZiF5Lit5b+D'),
+      title: "订阅中心",
       subtitle: '多客户端支持 • 智能优选 • 一键生成',
       selectClient: '[ 选择客户端 ]',
       systemStatus: '[ 系统状态 ]',
@@ -1617,7 +1397,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       checking: '检测中...',
       workerRegion: 'Worker地区: ',
       detectionMethod: '检测方式: ',
-      proxyIPStatus: 解码64('UHJveHlJUOeKtuaAgTog'),
+      proxyIPStatus: PROXY_IP_STATUS_LABEL,
       currentIP: '当前使用IP: ',
       regionMatch: '地区匹配: ',
       selectionLogic: '选择逻辑: ',
@@ -1625,15 +1405,15 @@ async function 处理订阅值(请求241, 用户240 = null) {
       kvEnabled: '✅ KV存储已启用，可以使用配置管理功能',
       kvDisabled: '⚠️ KV存储未启用或未配置',
       specifyRegion: '指定地区 (wk):',
-      autoDetect: 解码64('5a6Y5pa555u06L+e'),
+      autoDetect: "官方直连",
       saveRegion: '保存地区配置',
-      protocolSelection: 解码64('5Y2P6K6u6YCJ5oupOg=='),
-      enableProtoV: 解码64('5ZCv55SoIFZMRVNTIOWNj+iurg=='),
-      enableProtoT: 解码64('5ZCv55SoIFRyb2phbiDljY/orq4='),
-      enableXhttp: 解码64('5ZCv55SoIHhodHRwIOWNj+iurg=='),
-      altPassword: 解码64('VHJvamFuIOWvhueggSAo5Y+v6YCJKTo='),
+      protocolSelection: "协议选择:",
+      enableProtoV: "启用 VLESS 协议",
+      enableProtoT: "启用 Trojan 协议",
+      enableXhttp: "启用 xhttp 协议",
+      altPassword: "Trojan 密码 (可选):",
       customPath: '自定义路径 (d):',
-      customIP: 解码64('6Ieq5a6a5LmJUHJveHlJUCAocCk6'),
+      customIP: "自定义ProxyIP (p):",
       preferredIPs: '优选IP列表 (yx):',
       preferredIPsURL: '优选IP来源URL (yxURL):',
       latencyTest: '延迟测试',
@@ -1660,13 +1440,13 @@ async function 处理订阅值(请求241, 用户240 = null) {
       fetchURLPlaceholder: '输入优选IP的URL地址',
       generateIP: '生成IP',
       fetchIP: '获取IP',
-      socks5Config: 解码64('5Luj55CG6YWN572uIChzKTo='),
+      socks5Config: "代理配置 (s):",
       customHomepage: '自定义首页URL (homepage):',
       customHomepagePlaceholder: '例如: https://example.com',
       customHomepageHint: '设置自定义URL作为首页伪装。访问根路径 / 时将显示该URL的内容。留空则显示默认终端页面。',
       saveConfig: '保存配置',
       advancedControl: '高级控制',
-      subscriptionConverter: 解码64('6K6i6ZiF6L2s5o2i5Zyw5Z2AOg=='),
+      subscriptionConverter: "订阅转换地址:",
       builtinPreferred: '内置优选类型:',
       enablePreferredDomain: '启用优选域名',
       enablePreferredIP: '启用优选 IP',
@@ -1674,11 +1454,11 @@ async function 处理订阅值(请求241, 用户240 = null) {
       enableGitHubPreferred: '启用自定义优选',
       jkSection: '家宽链式',
       jkEnable: '开启家宽链式',
-      jkHint: 解码64('5byA5LqG5LmL5ZCO5a6i5oi356uv5YiX6KGo5aSa5LiA5Liq44CMQ0xBU0gg5a625a6944CN44CCQ0Yg6IqC54K55bim6Lev77yM5Ye65Y+j5o2i5oiQ5pel5pys44CB6Z+p5Zu9562J5Zyw55qE5a625bqt5a695bim44CC6KaBIENsYXNoIE1ldGEg5YaF5qC4IDEuMTkuMjUg5Lul5LiK5omN6K6k77yMQ2xhc2ggVmVyZ2UgUmV244CBRmxDbGFzaOOAgUNNRkEg6YO96KGM44CC6IqC54K55piv572R5Y+L5YWx5Lqr55qE77yM5pe25LiN5pe25Lya5o6J77yM6K6i6ZiF6YeM5Lya6Ieq5bex5o2i44CC'),
+      jkHint: "开了之后客户端列表多一个「CLASH 家宽」。CF 节点带路，出口换成日本、韩国等地的家庭宽带。要 Clash Meta 内核 1.19.25 以上才认，Clash Verge Rev、FlClash、CMFA 都行。节点是网友共享的，时不时会掉，订阅里会自己换。",
       jkClient: 'CLASH 家宽',
       allowAPIManagement: '允许API管理 (ae):',
       regionMatching: '地区匹配 (rm):',
-      downgradeControl: 解码64('5Ye656uZ5pa55byPIChxaik6'),
+      downgradeControl: "出站方式 (qj):",
       tlsControl: 'TLS控制 (dkby):',
       preferredControl: '优选控制 (yxby):',
       saveAdvanced: '保存高级配置',
@@ -1686,13 +1466,13 @@ async function 处理订阅值(请求241, 用户240 = null) {
       currentConfig: '📍 当前路径配置',
       refreshConfig: '刷新配置',
       resetConfig: '重置配置',
-      subscriptionCopied: 解码64('6K6i6ZiF6ZO+5o6l5bey5aSN5Yi2'),
-      autoSubscriptionCopied: 解码64('6Ieq5Yqo6K+G5Yir6K6i6ZiF6ZO+5o6l5bey5aSN5Yi277yM5a6i5oi356uv6K6/6Zeu5pe25Lya5qC55o2uVXNlci1BZ2VudOiHquWKqOivhuWIq+W5tui/lOWbnuWvueW6lOagvOW8jw=='),
+      subscriptionCopied: "订阅链接已复制",
+      autoSubscriptionCopied: "自动识别订阅链接已复制，客户端访问时会根据User-Agent自动识别并返回对应格式",
       altPasswordPlaceholder: '留空则自动使用 UUID',
-      altPasswordHint: 解码64('6K6+572u6Ieq5a6a5LmJIFRyb2phbiDlr4bnoIHjgILnlZnnqbrliJnkvb/nlKggVVVJROOAguWuouaIt+err+S8muiHquWKqOWvueWvhueggei/m+ihjCBTSEEyMjQg5ZOI5biM44CC'),
-      protocolHint: 解码64('5Y+v5Lul5ZCM5pe25ZCv55So5aSa5Liq5Y2P6K6u44CC6K6i6ZiF5bCG55Sf5oiQ6YCJ5Lit5Y2P6K6u55qE6IqC54K544CCPGJyPuKAoiBWTEVTUyBXUzog5Z+65LqOIFdlYlNvY2tldCDnmoTmoIflh4bljY/orq48YnI+4oCiIFRyb2phbjog5L2/55SoIFNIQTIyNCDlr4bnoIHorqTor4E8YnI+4oCiIHhodHRwOiDln7rkuo4gSFRUUCBQT1NUIOeahOS8quijheWNj+iuru+8iOmcgOimgee7keWumuiHquWumuS5ieWfn+WQjeW5tuW8gOWQryBnUlBD77yJ'),
+      altPasswordHint: "设置自定义 Trojan 密码。留空则使用 UUID。客户端会自动对密码进行 SHA224 哈希。",
+      protocolHint: "可以同时启用多个协议。订阅将生成选中协议的节点。<br>• VLESS WS: 基于 WebSocket 的标准协议<br>• Trojan: 使用 SHA224 密码认证<br>• xhttp: 基于 HTTP POST 的伪装协议（需要绑定自定义域名并开启 gRPC）",
       enableECH: '启用 ECH (Encrypted Client Hello)',
-      enableECHHint: 解码64('5ZCv55So5ZCO77yM5q+P5qyh5Yi35paw6K6i6ZiF5pe25Lya6Ieq5Yqo5LuOIERvSCDojrflj5bmnIDmlrDnmoQgRUNIIOmFjee9ruW5tua3u+WKoOWIsOmTvuaOpeS4rQ=='),
+      enableECHHint: "启用后，每次刷新订阅时会自动从 DoH 获取最新的 ECH 配置并添加到链接中",
       customDNS: '自定义 DNS 服务器',
       customDNSPlaceholder: '例如: https://223.5.5.5/dns-query',
       customDNSHint: '用于ECH配置查询的DNS服务器地址（DoH格式）',
@@ -1702,20 +1482,20 @@ async function 处理订阅值(请求241, 用户240 = null) {
       alpn: 'TLS ALPN',
       alpnDefault: '默认（留空，由客户端协商）',
       alpnHint: '仅添加到 TLS 节点链接参数；留空则不写 alpn。',
-      saveProtocol: 解码64('5L+d5a2Y5Y2P6K6u6YWN572u'),
+      saveProtocol: "保存协议配置",
       subscriptionConverterPlaceholder: '默认: https://url.v1.mk/sub',
-      subscriptionConverterHint: 解码64('6K6i6ZiF6L2s5o2i5bey5YaF6YOo5a6e546w77yM5peg6ZyA5aSW6YOoIEFQSeOAguatpOmhueS7heS9nOWFvOWuueS/neeVme+8jOWPr+eVmeepuuOAgg=='),
-      builtinPreferredHint: 解码64('5o6n5Yi26K6i6ZiF5Lit5YyF5ZCr5ZOq5Lqb5YaF572u5LyY6YCJ6IqC54K544CC6buY6K6k5YWo6YOo5ZCv55So44CC'),
+      subscriptionConverterHint: "订阅转换已内部实现，无需外部 API。此项仅作兼容保留，可留空。",
+      builtinPreferredHint: "控制订阅中包含哪些内置优选节点。默认全部启用。",
       apiEnabledDefault: '默认（关闭API）',
       apiEnabledYes: '开启API管理',
       apiEnabledHint: '⚠️ 安全提醒：开启后允许通过API动态添加优选IP。建议仅在需要时开启。',
       regionMatchingDefault: '默认（启用地区匹配）',
       regionMatchingNo: '关闭地区匹配',
       regionMatchingHint: '设置为"关闭"时不进行地区智能匹配',
-      downgradeControlDefault: 解码64('5LyY5YWI6LWw5Luj55CG77yI6buY6K6k77yJ'),
-      downgradeControlNo: 解码64('5LyY5YWI55u06L+e77yM5aSx6LSl5YaN6LWw5Luj55CG'),
-      downgradeControlOnly: 解码64('5Y+q6LWw5Luj55CG77yM5LiN5Zue6JC9'),
-      downgradeControlHint: 解码64('5rKh5aGr5Luj55CG5pe25LiJ5Liq6YCJ6aG56YO95LiA5qC377yM6YO95piv55u06L+e44CC5Y+q6LWw5Luj55CG5pe26L+e5LiN5LiK5bCx5pat5byA77yM5Ye65Y+jIElQIOS4jeS8mua8jw=='),
+      downgradeControlDefault: "优先走代理（默认）",
+      downgradeControlNo: "优先直连，失败再走代理",
+      downgradeControlOnly: "只走代理，不回落",
+      downgradeControlHint: "没填代理时三个选项都一样，都是直连。只走代理时连不上就断开，出口 IP 不会漏",
       tlsControlDefault: '默认（保留所有节点）',
       tlsControlYes: '仅TLS节点',
       tlsControlHint: '设置为"仅TLS节点"时只生成带TLS的节点，不生成非TLS节点（如80端口）',
@@ -1723,7 +1503,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       preferredControlYes: '关闭优选',
       preferredControlHint: '设置为"关闭优选"时只使用原生地址，不生成优选IP和域名节点',
       regionNames: {
-        CF: 解码64('8J+MkCDlrpjmlrnnm7Tov54='),
+        CF: "🌐 官方直连",
         HK: '🇭🇰 香港',
         US: '🇺🇸 美国',
         SG: '🇸🇬 新加坡',
@@ -1740,18 +1520,18 @@ async function 处理订阅值(请求241, 用户240 = null) {
       优选工具: '优选工具',
       autoDetectClient: '自动识别',
       selectionLogicText: '同地区 → 邻近地区 → 其他地区',
-      customIPDisabledHint: 解码64('5L2/55So6Ieq5a6a5LmJUHJveHlJUOaXtu+8jOWcsOWMuumAieaLqeW3suemgeeUqA=='),
-      customIPMode: 解码64('6Ieq5a6a5LmJUHJveHlJUOaooeW8jyAocOWPmOmHj+WQr+eUqCk='),
+      customIPDisabledHint: "使用自定义ProxyIP时，地区选择已禁用",
+      customIPMode: "自定义ProxyIP模式 (p变量启用)",
       customIPModeDesc: '自定义IP模式 (已禁用地区匹配)',
-      usingCustomProxyIP: 解码64('5L2/55So6Ieq5a6a5LmJUHJveHlJUDog'),
+      usingCustomProxyIP: "使用自定义ProxyIP: ",
       customIPConfig: ' (p变量配置)',
       customIPModeDisabled: '自定义IP模式，地区选择已禁用',
       manualRegion: '手动指定地区',
       manualRegionDesc: ' (手动指定)',
-      proxyIPAvailable: 解码64('MTAvMTAg5Y+v55SoIChQcm94eUlQ5Z+f5ZCN6aKE6K6+5Y+v55SoKQ=='),
+      proxyIPAvailable: "10/10 可用 (ProxyIP域名预设可用)",
       smartSelection: '智能就近选择中',
       sameRegionIP: '同地区IP可用 (1个)',
-      cloudflareDetection: 解码64('5a6Y5pa555u06L+e'),
+      cloudflareDetection: "官方直连",
       detectionFailed: '检测失败',
       apiTestResult: 'API检测结果: ',
       apiTestTime: '检测时间: ',
@@ -1774,7 +1554,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       checking: 'در حال بررسی...',
       workerRegion: 'منطقه Worker: ',
       detectionMethod: 'روش تشخیص: ',
-      proxyIPStatus: 解码64('2YjYtti524zYqiBQcm94eUlQOiA='),
+      proxyIPStatus: "وضعیت ProxyIP: ",
       currentIP: 'IP فعلی: ',
       regionMatch: 'تطبیق منطقه: ',
       selectionLogic: 'منطق انتخاب: ',
@@ -1785,8 +1565,8 @@ async function 处理订阅值(请求241, 用户240 = null) {
       autoDetect: 'اتصال مستقیم رسمی',
       saveRegion: 'ذخیره تنظیمات منطقه',
       protocolSelection: 'انتخاب پروتکل:',
-      enableProtoV: 解码64('2YHYudin2YTigIzYs9in2LLbjCDZvtix2YjYqtqp2YQgVkxFU1M='),
-      enableProtoT: 解码64('2YHYudin2YTigIzYs9in2LLbjCDZvtix2YjYqtqp2YQgVHJvamFu'),
+      enableProtoV: "فعال‌سازی پروتکل VLESS",
+      enableProtoT: "فعال‌سازی پروتکل Trojan",
       enableXhttp: 'فعال‌سازی پروتکل xhttp',
       enableECH: 'فعال‌سازی ECH (Encrypted Client Hello)',
       enableECHHint: 'پس از فعال‌سازی، در هر بار تازه‌سازی اشتراک، پیکربندی ECH به‌روز به‌طور خودکار از DoH دریافت شده و به لینک‌ها اضافه می‌شود',
@@ -1796,9 +1576,9 @@ async function 处理订阅值(请求241, 用户240 = null) {
       customECHDomain: 'دامنه ECH سفارشی',
       customECHDomainPlaceholder: 'مثال: cloudflare-ech.com',
       customECHDomainHint: 'دامنه استفاده شده در پیکربندی ECH، خالی بگذارید تا از مقدار پیش‌فرض استفاده شود',
-      altPassword: 解码64('2LHZhdiyINi52KjZiNixIFRyb2phbiAo2KfYrtiq24zYp9ix24wpOg=='),
+      altPassword: "رمز عبور Trojan (اختیاری):",
       customPath: 'مسیر سفارشی (d):',
-      customIP: 解码64('UHJveHlJUCDYs9mB2KfYsdi024wgKHApOg=='),
+      customIP: "ProxyIP سفارشی (p):",
       preferredIPs: 'لیست IP ترجیحی (yx):',
       preferredIPsURL: 'URL منبع IP ترجیحی (yxURL):',
       latencyTest: 'تست تاخیر',
@@ -1825,7 +1605,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       fetchURLPlaceholder: 'آدرس URL لیست IP را وارد کنید',
       generateIP: 'تولید IP',
       fetchIP: 'دریافت IP',
-      socks5Config: 解码64('2KrZhti424zZhdin2Kog2b7YsdmI2qnYs9uMIChzKTo='),
+      socks5Config: "تنظیمات پروکسی (s):",
       customHomepage: 'URL صفحه اصلی سفارشی (homepage):',
       customHomepagePlaceholder: 'مثال: https://example.com',
       customHomepageHint: 'تنظیم URL سفارشی به عنوان استتار صفحه اصلی. هنگام دسترسی به مسیر اصلی / محتوای این URL نمایش داده می‌شود. اگر خالی بگذارید صفحه ترمینال پیش‌فرض نمایش داده می‌شود.',
@@ -1839,11 +1619,11 @@ async function 处理订阅值(请求241, 用户240 = null) {
       enableGitHubPreferred: 'فعال‌سازی ترجیح سفارشی',
       jkSection: 'زنجیره اینترنت خانگی',
       jkEnable: 'فعال‌سازی زنجیره اینترنت خانگی',
-      jkHint: 解码64('2b7YsyDYp9iyINmB2LnYp9mE4oCM2LPYp9iy24zYjCDar9iy24zZhtmHIMKrQ0xBU0gg2K7Yp9mG2q/bjMK7INio2Ycg2YHZh9ix2LPYqiDaqdmE2KfbjNmG2KrigIzZh9inINin2LbYp9mB2Ycg2YXbjOKAjNi02YjYry4g2q/YsdmH4oCM2YfYp9uMIENGINmF2LPbjNixINix2Kcg2KjYp9iyINmF24zigIzaqdmG2YbYryDZiCDYrtix2YjYrNuMINin2LIg2KfbjNmG2KrYsdmG2Kog2K7Yp9mG2q/bjCDamNin2b7ZhtiMINqp2LHZhyDZiCDaqdi02YjYsdmH2KfbjCDYr9uM2q/YsSDYp9iz2KouINmB2YLYtyDZh9iz2KrZhyBDbGFzaCBNZXRhINmG2LPYrtmHIDEuMTkuMjUg2KjZhyDYqNin2YTYpyDYotmGINix2Kcg2YXbjOKAjNi02YbYp9iz2K/YmyBDbGFzaCBWZXJnZSBSZXbYjCBGbENsYXNoINmIIENNRkEg2qnYp9ixINmF24zigIzaqdmG2YbYry4g2q/YsdmH4oCM2YfYpyDYp9i02KrYsdin2qnbjCDZh9iz2KrZhtivINmIINqv2KfZh9uMINmC2LfYuSDZhduM4oCM2LTZiNmG2K/YjCDYp9i02KrYsdin2qkg2K7ZiNiv2LQg2q/YsdmHINiv24zar9ix24wg2LHYpyDYp9mG2KrYrtin2Kgg2YXbjOKAjNqp2YbYry4='),
+      jkHint: "پس از فعال‌سازی، گزینه «CLASH خانگی» به فهرست کلاینت‌ها اضافه می‌شود. گره‌های CF مسیر را باز می‌کنند و خروجی از اینترنت خانگی ژاپن، کره و کشورهای دیگر است. فقط هسته Clash Meta نسخه 1.19.25 به بالا آن را می‌شناسد؛ Clash Verge Rev، FlClash و CMFA کار می‌کنند. گره‌ها اشتراکی هستند و گاهی قطع می‌شوند، اشتراک خودش گره دیگری را انتخاب می‌کند.",
       jkClient: 'CLASH خانگی',
       allowAPIManagement: 'اجازه مدیریت API (ae):',
       regionMatching: 'تطبیق منطقه (rm):',
-      downgradeControl: 解码64('2LHZiNi0INiu2LHZiNisIChxaik6'),
+      downgradeControl: "روش خروج (qj):",
       tlsControl: 'کنترل TLS (dkby):',
       preferredControl: 'کنترل ترجیحی (yxby):',
       saveAdvanced: 'ذخیره تنظیمات پیشرفته',
@@ -1854,8 +1634,8 @@ async function 处理订阅值(请求241, 用户240 = null) {
       subscriptionCopied: 'لینک اشتراک کپی شد',
       autoSubscriptionCopied: 'لینک اشتراک تشخیص خودکار کپی شد، کلاینت هنگام دسترسی بر اساس User-Agent به طور خودکار تشخیص داده و قالب مربوطه را برمی‌گرداند',
       altPasswordPlaceholder: 'خالی بگذارید تا از UUID استفاده شود',
-      altPasswordHint: 解码64('2LHZhdiyINi52KjZiNixIFRyb2phbiDYs9mB2KfYsdi024wg2LHYpyDYqtmG2LjbjNmFINqp2YbbjNivLiDYp9qv2LEg2K7Yp9mE24wg2Kjar9iw2KfYsduM2K8g2KfYsiBVVUlEINin2LPYqtmB2KfYr9mHINmF24zigIzYtNmI2K8uINqp2YTYp9uM2YbYqiDYqNmHINi32YjYsSDYrtmI2K/aqdin2LEg2LHZhdiyINi52KjZiNixINix2Kcg2KjYpyBTSEEyMjQg2YfYtCDZhduM4oCM2qnZhtivLg=='),
-      protocolHint: 解码64('2YXbjOKAjNiq2YjYp9mG24zYryDahtmG2K/bjNmGINm+2LHZiNiq2qnZhCDYsdinINmH2YXYstmF2KfZhiDZgdi52KfZhCDaqdmG24zYry4g2KfYtNiq2LHYp9qpINqv2LHZh+KAjNmH2KfbjCDZvtix2YjYqtqp2YTigIzZh9in24wg2KfZhtiq2K7Yp9ioINi02K/ZhyDYsdinINiq2YjZhNuM2K8g2YXbjOKAjNqp2YbYry48YnI+4oCiIFZMRVNTIFdTOiDZvtix2YjYqtqp2YQg2KfYs9iq2KfZhtiv2KfYsdivINmF2KjYqtmG24wg2KjYsSBXZWJTb2NrZXQ8YnI+4oCiIFRyb2phbjog2KfYrdix2KfYsiDZh9mI24zYqiDYqNinINix2YXYsiDYudio2YjYsSBTSEEyMjQ8YnI+4oCiIHhodHRwOiDZvtix2YjYqtqp2YQg2KfYs9iq2KrYp9ixINmF2KjYqtmG24wg2KjYsSBIVFRQIFBPU1QgKNmG24zYp9iyINio2Ycg2KfYqti12KfZhCDYr9in2YXZhtmHINiz2YHYp9ix2LTbjCDZiCDZgdi52KfZhOKAjNiz2KfYstuMIGdSUEMg2K/Yp9ix2K8p'),
+      altPasswordHint: "رمز عبور Trojan سفارشی را تنظیم کنید. اگر خالی بگذارید از UUID استفاده می‌شود. کلاینت به طور خودکار رمز عبور را با SHA224 هش می‌کند.",
+      protocolHint: "می‌توانید چندین پروتکل را همزمان فعال کنید. اشتراک گره‌های پروتکل‌های انتخاب شده را تولید می‌کند.<br>• VLESS WS: پروتکل استاندارد مبتنی بر WebSocket<br>• Trojan: احراز هویت با رمز عبور SHA224<br>• xhttp: پروتکل استتار مبتنی بر HTTP POST (نیاز به اتصال دامنه سفارشی و فعال‌سازی gRPC دارد)",
       alpn: 'TLS ALPN',
       alpnDefault: 'پیش‌فرض (خالی، مذاکره توسط کلاینت)',
       alpnHint: 'فقط به لینک‌های TLS اضافه می‌شود؛ اگر خالی باشد alpn نوشته نمی‌شود.',
@@ -1869,10 +1649,10 @@ async function 处理订阅值(请求241, 用户240 = null) {
       regionMatchingDefault: 'پیش‌فرض (فعال‌سازی تطبیق منطقه)',
       regionMatchingNo: 'بستن تطبیق منطقه',
       regionMatchingHint: 'وقتی "بستن" تنظیم شود، تطبیق هوشمند منطقه انجام نمی‌شود',
-      downgradeControlDefault: 解码64('2KfZiNmE2YjbjNiqINio2Kcg2b7YsdmI2qnYs9uMICjZvtuM2LTigIzZgdix2LYp'),
-      downgradeControlNo: 解码64('2KfZiNmE2YjbjNiqINio2Kcg2KfYqti12KfZhCDZhdiz2KrZgtuM2YXYjCDYr9ixINi12YjYsdiqINiu2LfYpyDZvtix2Yjaqdiz24w='),
-      downgradeControlOnly: 解码64('2YHZgti3INm+2LHZiNqp2LPbjNiMINio2K/ZiNmGINio2KfYstqv2LTYqg=='),
-      downgradeControlHint: 解码64('2Kfar9ixINm+2LHZiNqp2LPbjCDYqtmG2LjbjNmFINmG2LTYr9mHINio2KfYtNivINmH2LEg2LPZhyDar9iy24zZhtmHINuM2qnYs9in2YYg2Ygg2YXYs9iq2YLbjNmFINmH2LPYqtmG2K8uINiv2LEg2K3Yp9mE2Kog2YHZgti3INm+2LHZiNqp2LPbjNiMINin2KrYtdin2YQg2YbYp9mF2YjZgdmCINmC2LfYuSDZhduM4oCM2LTZiNivINmIIElQINiu2LHZiNis24wg2YHYp9i0INmG2YXbjOKAjNi02YjYrw=='),
+      downgradeControlDefault: "اولویت با پروکسی (پیش‌فرض)",
+      downgradeControlNo: "اولویت با اتصال مستقیم، در صورت خطا پروکسی",
+      downgradeControlOnly: "فقط پروکسی، بدون بازگشت",
+      downgradeControlHint: "اگر پروکسی تنظیم نشده باشد هر سه گزینه یکسان و مستقیم هستند. در حالت فقط پروکسی، اتصال ناموفق قطع می‌شود و IP خروجی فاش نمی‌شود",
       tlsControlDefault: 'پیش‌فرض (حفظ همه گره‌ها)',
       tlsControlYes: 'فقط گره‌های TLS',
       tlsControlHint: 'وقتی "فقط گره‌های TLS" تنظیم شود، فقط گره‌های با TLS تولید می‌شوند، گره‌های غیر TLS (مانند پورت 80) تولید نمی‌شوند',
@@ -1897,15 +1677,15 @@ async function 处理订阅值(请求241, 用户240 = null) {
       优选工具: 'ابزار ترجیح IP',
       autoDetectClient: 'تشخیص خودکار',
       selectionLogicText: 'هم‌منطقه → منطقه مجاور → سایر مناطق',
-      customIPDisabledHint: 解码64('2YfZhtqv2KfZhSDYp9iz2KrZgdin2K/ZhyDYp9iyIFByb3h5SVAg2LPZgdin2LHYtNuM2Iwg2KfZhtiq2K7Yp9ioINmF2YbYt9mC2Ycg2LrbjNix2YHYudin2YQg2KfYs9iq'),
-      customIPMode: 解码64('2K3Yp9mE2KogUHJveHlJUCDYs9mB2KfYsdi024wgKNmF2KrYutuM2LEgcCDZgdi52KfZhCDYp9iz2Kop'),
+      customIPDisabledHint: "هنگام استفاده از ProxyIP سفارشی، انتخاب منطقه غیرفعال است",
+      customIPMode: "حالت ProxyIP سفارشی (متغیر p فعال است)",
       customIPModeDesc: 'حالت IP سفارشی (تطبیق منطقه غیرفعال است)',
-      usingCustomProxyIP: 解码64('2KfYs9iq2YHYp9iv2Ycg2KfYsiBQcm94eUlQINiz2YHYp9ix2LTbjDog'),
+      usingCustomProxyIP: "استفاده از ProxyIP سفارشی: ",
       customIPConfig: ' (پیکربندی متغیر p)',
       customIPModeDisabled: 'حالت IP سفارشی، انتخاب منطقه غیرفعال است',
       manualRegion: 'تعیین منطقه دستی',
       manualRegionDesc: ' (تعیین دستی)',
-      proxyIPAvailable: 解码64('MTAvMTAg2K/YsSDYr9iz2KrYsdizICjYr9in2YXZhtmHINm+24zYtOKAjNmB2LHYtiBQcm94eUlQINiv2LEg2K/Ys9iq2LHYsyDYp9iz2Kop'),
+      proxyIPAvailable: "10/10 در دسترس (دامنه پیش‌فرض ProxyIP در دسترس است)",
       smartSelection: 'انتخاب هوشمند نزدیک در حال انجام است',
       sameRegionIP: 'IP هم‌منطقه در دسترس است (1)',
       cloudflareDetection: 'اتصال مستقیم رسمی',
@@ -1948,21 +1728,21 @@ async function 处理订阅值(请求241, 用户240 = null) {
                 <div class="client-group">
                     <div class="client-group-label">${是否值236 ? 'iOS' : '常用'}</div>
                     <div class="client-grid client-grid-main">
-                        <button type="button" class="client-btn client-btn-main" onclick="生成客户端链接(atob('djJyYXk='), 'Shadowrocket')">Shadowrocket</button>
-                        <button type="button" class="client-btn client-btn-main" onclick="生成客户端链接(atob('Y2xhc2g='), 'CLASH')">Clash</button>
-                        <button type="button" class="client-btn" onclick="生成客户端链接(atob('c2luZ2JveA=='), 'SING-BOX')">Sing-box</button>
-                        <button type="button" class="client-btn" onclick="生成客户端链接(atob('djJyYXk='), 'V2RAYNG')">v2rayNG</button>
+                        <button type="button" class="client-btn client-btn-main" onclick="生成客户端链接('v2ray', 'Shadowrocket')">Shadowrocket</button>
+                        <button type="button" class="client-btn client-btn-main" onclick="生成客户端链接('clash', 'CLASH')">Clash</button>
+                        <button type="button" class="client-btn" onclick="生成客户端链接('singbox', 'SING-BOX')">Sing-box</button>
+                        <button type="button" class="client-btn" onclick="生成客户端链接('v2ray', 'V2RAYNG')">v2rayNG</button>
                     </div>
                 </div>
                 <details class="more-clients">
                     <summary>${是否值236 ? 'سایر کلاینت‌ها' : '更多客户端'}</summary>
                     <div class="client-grid">
-                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接(atob('Y2xhc2g='), 'STASH')">Stash</button>
-                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接(atob('c3VyZ2U='), 'SURGE')">Surge</button>
-                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接(atob('bG9vbg=='), 'LOON')">Loon</button>
-                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接(atob('cXVhbng='), 'QUANTUMULT X')">Quantumult X</button>
-                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接(atob('djJyYXk='), 'V2RAY')">V2Ray</button>
-                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接(atob('djJyYXk='), 'NEKORAY')">NekoRay</button>
+                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接('clash', 'STASH')">Stash</button>
+                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接('surge', 'SURGE')">Surge</button>
+                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接('loon', 'LOON')">Loon</button>
+                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接('quanx', 'QUANTUMULT X')">Quantumult X</button>
+                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接('v2ray', 'V2RAY')">V2Ray</button>
+                        <button type="button" class="client-btn client-btn-soft" onclick="生成客户端链接('v2ray', 'NEKORAY')">NekoRay</button>
                         <button type="button" class="client-btn client-btn-soft" id="jkClientBtn" style="${启用家宽链式 ? '' : 'display: none;'}" onclick="生成客户端链接('vg', '${翻译值.jkClient}')">${翻译值.jkClient}</button>
                     </div>
                 </details>
@@ -2092,12 +1872,12 @@ async function 处理订阅值(请求241, 用户240 = null) {
                         <div class="field">
                                 <label class="field-label">${翻译值.customPath}</label>
                                 <input type="text" id="customPath" placeholder="${是否值236 ? 'مثال: /mypath یا خالی بگذارید تا از UUID استفاده شود' : '例如: /mypath 或留空使用 UUID'}" class="field-control">
-                                <small class="field-hint">${是否值236 ? 解码64('2YXYs9uM2LEg2KfYtNiq2LHYp9qpINiz2YHYp9ix2LTbjC4g2Kfar9ixINiu2KfZhNuMINio2q/YsNin2LHbjNivINin2LIgVVVJRCDYqNmHINi52YbZiNin2YYg2YXYs9uM2LEg2KfYs9iq2YHYp9iv2Ycg2YXbjOKAjNi02YjYry4=') : 解码64('6Ieq5a6a5LmJ6K6i6ZiF6Lev5b6E44CC55WZ56m65YiZ5L2/55SoIFVVSUQg5L2c5Li66Lev5b6E44CC')}</small>
+                                <small class="field-hint">${是否值236 ? 'مسیر اشتراک سفارشی. اگر خالی بگذارید از UUID به عنوان مسیر استفاده می‌شود.' : '自定义订阅路径。留空则使用 UUID 作为路径。'}</small>
                         </div>
                         <div class="field">
                                 <label class="field-label">${翻译值.customIP}</label>
                                 <input type="text" id="customIP" placeholder="${是否值236 ? 'مثال: 1.2.3.4:443' : '例如: 1.2.3.4:443'}" class="field-control">
-                                <small class="field-hint">${是否值236 ? 解码64('2KLYr9ix2LMg2Ygg2b7ZiNix2KogUHJveHlJUCDYs9mB2KfYsdi024w=') : 解码64('6Ieq5a6a5LmJUHJveHlJUOWcsOWdgOWSjOerr+WPow==')}</small>
+                                <small class="field-hint">${是否值236 ? 'آدرس و پورت ProxyIP سفارشی' : '自定义ProxyIP地址和端口'}</small>
                         </div>
                         <div class="field">
                                 <label class="field-label">${翻译值.preferredIPs}</label>
@@ -2184,8 +1964,8 @@ async function 处理订阅值(请求241, 用户240 = null) {
 
                         <div class="field">
                                 <label class="field-label">${翻译值.socks5Config}</label>
-                                <input type="text" id="socksConfig" placeholder="${是否值236 ? 解码64('2YXYq9in2YQ6IHVzZXI6cGFzc0Bob3N0OnBvcnQg24zYpyBodHRwOi8vdXNlcjpwYXNzQGhvc3Q6cG9ydA==') : 解码64('5L6L5aaCOiB1c2VyOnBhc3NAaG9zdDpwb3J0IOaIliBodHRwOi8vdXNlcjpwYXNzQGhvc3Q6cG9ydA==')}" class="field-control">
-                                <small class="field-hint">${是否值236 ? 解码64('2KLYr9ix2LMg2b7YsdmI2qnYs9uMINiu2LHZiNis24wg2KjYsdin24wg2KfZhtiq2YLYp9mEINiq2YXYp9mFINiq2LHYp9mB24zaqSDYrtix2YjYrNuMLiDYqNiv2YjZhiDZvtuM2LTZiNmG2K8g2KjZhyDYtdmI2LHYqiBzNSDYr9ixINmG2LjYsSDar9ix2YHYqtmHINmF24zigIzYtNmI2K8=') : 解码64('5Ye656uZ5Luj55CG5Zyw5Z2A77yM55So5LqO6L2s5Y+R5omA5pyJ5Ye656uZ5rWB6YeP44CC5LiN5YaZ5YmN57yA6buY6K6k5oyJIHM1IOWkhOeQhg==')}</small>
+                                <input type="text" id="socksConfig" placeholder="${是否值236 ? 'مثال: user:pass@host:port یا http://user:pass@host:port' : '例如: user:pass@host:port 或 http://user:pass@host:port'}" class="field-control">
+                                <small class="field-hint">${是否值236 ? 'آدرس پروکسی خروجی برای انتقال تمام ترافیک خروجی. بدون پیشوند به صورت s5 در نظر گرفته می‌شود' : '出站代理地址，用于转发所有出站流量。不写前缀默认按 s5 处理'}</small>
                         </div>
                     </form>
 
@@ -2357,8 +2137,8 @@ function 转义HTML(值) {
 // 翻译对象
 const 本地值20215 = {
   zh: {
-    subscriptionCopied: '${解码64('6K6i6ZiF6ZO+5o6l5bey5aSN5Yi2')}',
-    autoSubscriptionCopied: '${解码64('6Ieq5Yqo6K+G5Yir6K6i6ZiF6ZO+5o6l5bey5aSN5Yi277yM5a6i5oi356uv6K6/6Zeu5pe25Lya5qC55o2uVXNlci1BZ2VudOiHquWKqOivhuWIq+W5tui/lOWbnuWvueW6lOagvOW8jw==')}'
+    subscriptionCopied: '${"订阅链接已复制"}',
+    autoSubscriptionCopied: '${"自动识别订阅链接已复制，客户端访问时会根据User-Agent自动识别并返回对应格式"}'
   },
   fa: {
     subscriptionCopied: 'لینک اشتراک کپی شد',
@@ -2525,7 +2305,7 @@ function 生成客户端链接(客户端类型, 客户端名称) {
   var 方案网址 = '';
   var 显示名称 = 客户端名称 || '';
   var 最终网址 = 订阅网址20191;
-  if (客户端类型 === atob('djJyYXk=')) {
+  if (客户端类型 === 'v2ray') {
     最终网址 = 订阅网址20191;
     var 网址值20190 = document.getElementById("clientSubscriptionUrl");
     网址值20190.textContent = 最终网址;
@@ -2542,21 +2322,21 @@ function 生成客户端链接(客户端类型, 客户端名称) {
         显示提示((显示名称 ? 显示名称 + ' ' : '') + '复制失败，请手动长按链接复制', 'warn');
       });
     } else if (客户端名称 === 'Shadowrocket') {
-      方案网址 = '${解码64('c2hhZG93cm9ja2V0Oi8vYWRkLw==')}' + encodeURIComponent(最终网址);
+      方案网址 = '${INSTALL_URL_SHADOWROCKET}' + encodeURIComponent(最终网址);
       尝试打开应用(方案网址, function () {
         navigator.clipboard.writeText(最终网址).then(function () {
           显示提示(显示名称 + " " + 翻译值20207.subscriptionCopied, 'success');
         });
       });
     } else if (客户端名称 === 'V2RAYNG') {
-      方案网址 = '${解码64('djJyYXluZzovL2luc3RhbGw/dXJsPQ==')}' + encodeURIComponent(最终网址);
+      方案网址 = '${INSTALL_URL_V2RAYNG}' + encodeURIComponent(最终网址);
       尝试打开应用(方案网址, function () {
         navigator.clipboard.writeText(最终网址).then(function () {
           显示提示(显示名称 + " " + 翻译值20207.subscriptionCopied, 'success');
         });
       });
     } else if (客户端名称 === 'NEKORAY') {
-      方案网址 = '${解码64('bmVrb3JheTovL2luc3RhbGwtY29uZmlnP3VybD0=')}' + encodeURIComponent(最终网址);
+      方案网址 = '${INSTALL_URL_NEKORAY}' + encodeURIComponent(最终网址);
       尝试打开应用(方案网址, function () {
         navigator.clipboard.writeText(最终网址).then(function () {
           显示提示(显示名称 + " " + 翻译值20207.subscriptionCopied, 'success');
@@ -2575,26 +2355,26 @@ function 生成客户端链接(客户端类型, 客户端名称) {
     网址值20190.style.maxWidth = "100%";
     网址值20190.style.boxSizing = "border-box";
     if (客户端类型 === 'vg') {
-      方案网址 = '${解码64('Y2xhc2g6Ly9pbnN0YWxsLWNvbmZpZz91cmw9')}' + encodeURIComponent(最终网址);
-    } else if (客户端类型 === atob('Y2xhc2g=')) {
+      方案网址 = '${INSTALL_URL_CLASH}' + encodeURIComponent(最终网址);
+    } else if (客户端类型 === 'clash') {
       if (客户端名称 === 'STASH') {
-        方案网址 = '${解码64('c3Rhc2g6Ly9pbnN0YWxsP3VybD0=')}' + encodeURIComponent(最终网址);
+        方案网址 = '${INSTALL_URL_STASH}' + encodeURIComponent(最终网址);
         显示名称 = 'STASH';
       } else {
-        方案网址 = '${解码64('Y2xhc2g6Ly9pbnN0YWxsLWNvbmZpZz91cmw9')}' + encodeURIComponent(最终网址);
+        方案网址 = '${INSTALL_URL_CLASH}' + encodeURIComponent(最终网址);
         显示名称 = 'CLASH';
       }
-    } else if (客户端类型 === atob('c3VyZ2U=')) {
-      方案网址 = '${解码64('c3VyZ2U6Ly8vaW5zdGFsbC1jb25maWc/dXJsPQ==')}' + encodeURIComponent(最终网址);
+    } else if (客户端类型 === 'surge') {
+      方案网址 = '${INSTALL_URL_SURGE}' + encodeURIComponent(最终网址);
       显示名称 = 'SURGE';
-    } else if (客户端类型 === atob('c2luZ2JveA==')) {
-      方案网址 = '${解码64('c2luZy1ib3g6Ly9pbnN0YWxsLWNvbmZpZz91cmw9')}' + encodeURIComponent(最终网址);
+    } else if (客户端类型 === 'singbox') {
+      方案网址 = '${INSTALL_URL_SING_BOX}' + encodeURIComponent(最终网址);
       显示名称 = 'SING-BOX';
-    } else if (客户端类型 === atob('bG9vbg==')) {
-      方案网址 = '${解码64('bG9vbjovL2luc3RhbGw/dXJsPQ==')}' + encodeURIComponent(最终网址);
+    } else if (客户端类型 === 'loon') {
+      方案网址 = '${INSTALL_URL_LOON}' + encodeURIComponent(最终网址);
       显示名称 = 'LOON';
-    } else if (客户端类型 === atob('cXVhbng=')) {
-      方案网址 = '${解码64('cXVhbnR1bXVsdC14Oi8vaW5zdGFsbC1jb25maWc/dXJsPQ==')}' + encodeURIComponent(最终网址);
+    } else if (客户端类型 === 'quanx') {
+      方案网址 = '${INSTALL_URL_QUANTUMULT_X}' + encodeURIComponent(最终网址);
       显示名称 = 'QUANTUMULT X';
     }
     if (方案网址) {
@@ -2698,11 +2478,11 @@ async function 检查系统状态() {
       zh: {
         workerRegion: 'Worker地区: ',
         detectionMethod: '检测方式: ',
-        proxyIPStatus: '${解码64('UHJveHlJUOeKtuaAgTog')}',
+        proxyIPStatus: '${PROXY_IP_STATUS_LABEL}',
         currentIP: '当前使用IP: ',
         regionMatch: '地区匹配: ',
         regionNames: {
-          'CF': '${解码64('8J+MkCDlrpjmlrnnm7Tov54=')}',
+          'CF': '${"🌐 官方直连"}',
           'HK': '🇭🇰 香港',
           'US': '🇺🇸 美国',
           'SG': '🇸🇬 新加坡',
@@ -2714,24 +2494,24 @@ async function 检查系统状态() {
           'FI': '🇫🇮 芬兰',
           'GB': '🇬🇧 英国'
         },
-        customIPMode: '${解码64('6Ieq5a6a5LmJUHJveHlJUOaooeW8jyAocOWPmOmHj+WQr+eUqCk=')}',
+        customIPMode: '${"自定义ProxyIP模式 (p变量启用)"}',
         customIPModeDesc: '自定义IP模式 (已禁用地区匹配)',
-        usingCustomProxyIP: '${解码64('5L2/55So6Ieq5a6a5LmJUHJveHlJUDog')}',
+        usingCustomProxyIP: '${"使用自定义ProxyIP: "}',
         customIPConfig: ' (p变量配置)',
         customIPModeDisabled: '自定义IP模式，地区选择已禁用',
         manualRegion: '手动指定地区',
         manualRegionDesc: ' (手动指定)',
-        proxyIPAvailable: '${解码64('MTAvMTAg5Y+v55SoIChQcm94eUlQ5Z+f5ZCN6aKE6K6+5Y+v55SoKQ==')}',
+        proxyIPAvailable: '${"10/10 可用 (ProxyIP域名预设可用)"}',
         smartSelection: '智能就近选择中',
         sameRegionIP: '同地区IP可用 (1个)',
-        cloudflareDetection: '${解码64('5a6Y5pa555u06L+e')}',
+        cloudflareDetection: '${"官方直连"}',
         detectionFailed: '检测失败',
         unknown: '未知'
       },
       fa: {
         workerRegion: 'منطقه Worker: ',
         detectionMethod: 'روش تشخیص: ',
-        proxyIPStatus: '${解码64('2YjYtti524zYqiBQcm94eUlQOiA=')}',
+        proxyIPStatus: '${"وضعیت ProxyIP: "}',
         currentIP: 'IP فعلی: ',
         regionMatch: 'تطبیق منطقه: ',
         regionNames: {
@@ -2747,14 +2527,14 @@ async function 检查系统状态() {
           'FI': '🇫🇮 فنلاند',
           'GB': '🇬🇧 بریتانیا'
         },
-        customIPMode: '${解码64('2K3Yp9mE2KogUHJveHlJUCDYs9mB2KfYsdi024wgKNmF2KrYutuM2LEgcCDZgdi52KfZhCDYp9iz2Kop')}',
+        customIPMode: '${"حالت ProxyIP سفارشی (متغیر p فعال است)"}',
         customIPModeDesc: 'حالت IP سفارشی (تطبیق منطقه غیرفعال است)',
-        usingCustomProxyIP: '${解码64('2KfYs9iq2YHYp9iv2Ycg2KfYsiBQcm94eUlQINiz2YHYp9ix2LTbjDog')}',
+        usingCustomProxyIP: '${"استفاده از ProxyIP سفارشی: "}',
         customIPConfig: ' (پیکربندی متغیر p)',
         customIPModeDisabled: 'حالت IP سفارشی، انتخاب منطقه غیرفعال است',
         manualRegion: 'تعیین منطقه دستی',
         manualRegionDesc: ' (تعیین دستی)',
-        proxyIPAvailable: '${解码64('MTAvMTAg2K/YsSDYr9iz2KrYsdizICjYr9in2YXZhtmHINm+24zYtOKAjNmB2LHYtiBQcm94eUlQINiv2LEg2K/Ys9iq2LHYsyDYp9iz2Kop')}',
+        proxyIPAvailable: '${"10/10 در دسترس (دامنه پیش‌فرض ProxyIP در دسترس است)"}',
         smartSelection: 'انتخاب هوشمند نزدیک در حال انجام است',
         sameRegionIP: 'IP هم‌منطقه در دسترس است (1)',
         cloudflareDetection: 'اتصال مستقیم رسمی',
@@ -2832,7 +2612,7 @@ async function 检查系统状态() {
       zh: {
         workerRegion: 'Worker地区: ',
         detectionMethod: '检测方式: ',
-        proxyIPStatus: '${解码64('UHJveHlJUOeKtuaAgTog')}',
+        proxyIPStatus: '${PROXY_IP_STATUS_LABEL}',
         currentIP: '当前使用IP: ',
         regionMatch: '地区匹配: ',
         detectionFailed: '检测失败'
@@ -2840,7 +2620,7 @@ async function 检查系统状态() {
       fa: {
         workerRegion: 'منطقه Worker: ',
         detectionMethod: 'روش تشخیص: ',
-        proxyIPStatus: '${解码64('2YjYtti524zYqiBQcm94eUlQOiA=')}',
+        proxyIPStatus: '${"وضعیت ProxyIP: "}',
         currentIP: 'IP فعلی: ',
         regionMatch: 'تطبیق منطقه: ',
         detectionFailed: 'تشخیص ناموفق'
@@ -3467,8 +3247,8 @@ document.addEventListener('DOMContentLoaded', function () {
       值值20084 = document.getElementById('et'),
       值值20083 = document.getElementById('ex');
     if (值值20085 && 值值20084 && 值值20083 && !值值20085.checked && !值值20084.checked && !值值20083.checked) {
-      显示操作状态('${是否值236 ? 解码64('2K3Yr9in2YLZhCDbjNqpINm+2LHZiNiq2qnZhCDYsdinINmB2LnYp9mEINqp2YbbjNivIQ==') : 解码64('6Iez5bCR6ZyA6KaB5ZCv55So5LiA5Liq5Y2P6K6u77yB')}', 'err');
-      显示提示('${是否值236 ? 解码64('2K3Yr9in2YLZhCDbjNqpINm+2LHZiNiq2qnZhCDYsdinINmB2LnYp9mEINqp2YbbjNivIQ==') : 解码64('6Iez5bCR6ZyA6KaB5ZCv55So5LiA5Liq5Y2P6K6u77yB')}', 'warn');
+      显示操作状态('${是否值236 ? 'حداقل یک پروتکل را فعال کنید!' : '至少需要启用一个协议！'}', 'err');
+      显示提示('${是否值236 ? 'حداقل یک پروتکل را فعال کنید!' : '至少需要启用一个协议！'}', 'warn');
       return;
     }
     const 本地值20082 = document.getElementById('cpBtnSaveAll');
@@ -4428,7 +4208,7 @@ async function 获取值解析新地址列表() {
         const 本地值108 = 项目109.match(正则);
         if (本地值108) {
           结果列表110.push({
-            ip: 规范化节点主机(本地值108[1]),
+            ip: normalizeNodeHost(本地值108[1]),
             port: parseInt(本地值108[2] || '443', 10),
             name: 本地值108[3]?.trim() || 本地值108[1]
           });
@@ -4465,8 +4245,8 @@ function 生成链接列表来源新地址列表(列表100, 用户99, 工作器�
   const 云墙安全超文本端口93 = [443, 2053, 2083, 2087, 2096, 8443];
   const 链接列表92 = [];
   const 网页套接字路径91 = '/?ed=2048';
-  const 协议 = atob('dmxlc3M=');
-  const 制作节点名称90 = 别名命名器95 || 创建值节点命名器(跳过编号96);
+  const 协议 = PROTOCOL_VLESS;
+  const 制作节点名称90 = 别名命名器95 || createNodeNamer(跳过编号96);
   for (const 项目89 of 列表100) {
     const 端口88 = 项目89.port;
     const 安全地址87 = 项目89.ip.includes(':') ? `[${项目89.ip}]` : 项目89.ip;
@@ -4510,7 +4290,7 @@ function 生成链接列表来源新地址列表(列表100, 用户99, 工作器�
 function 生成扩展超文本链接列表来源源(列表76, 用户75, 工作器域名74, 加密客户端问候配置73 = null, 跳过编号72 = false, 别名命名器71 = null) {
   const 链接列表70 = [];
   const 节点路径 = 用户75.substring(0, 8);
-  const 制作节点名称69 = 别名命名器71 || 创建值节点命名器(跳过编号72);
+  const 制作节点名称69 = 别名命名器71 || createNodeNamer(跳过编号72);
   for (const 项目68 of 列表76) {
     const 安全地址67 = 项目68.ip.includes(':') ? `[${项目68.ip}]` : 项目68.ip;
     const 端口66 = 项目68.port || 443;
@@ -4540,7 +4320,7 @@ function 生成扩展超文本链接列表来源源(列表76, 用户75, 工作�
       const 加密客户端问候域名63 = 自定义加密客户端问候域名 || 'cloudflare-ech.com';
       参数.set('ech', `${加密客户端问候域名63}+${域名系统值64}`);
     }
-    链接列表70.push(`${解码64('dmxlc3M6Ly8=')}${用户75}@${安全地址67}:${端口66}?${参数.toString()}#${encodeURIComponent(网页套接字节点名称65)}`);
+    链接列表70.push(`${SCHEME_VLESS}${用户75}@${安全地址67}:${端口66}?${参数.toString()}#${encodeURIComponent(网页套接字节点名称65)}`);
   }
   return 链接列表70;
 }
@@ -4551,13 +4331,13 @@ async function 生成木马链接列表来源新地址列表(列表, 用户, 工
   const 链接列表 = [];
   const 网页套接字路径 = '/?ed=2048';
   const 密码 = 传输路径 || 用户;
-  const 制作节点名称 = 别名命名器 || 创建值节点命名器(跳过编号);
+  const 制作节点名称 = 别名命名器 || createNodeNamer(跳过编号);
   for (const 项目62 of 列表) {
     const 端口61 = 项目62.port;
     const 安全地址 = 项目62.ip.includes(':') ? `[${项目62.ip}]` : 项目62.ip;
     if (云墙安全超文本端口.includes(端口61)) {
       const 网页套接字节点名称60 = 制作节点名称(项目62);
-      let 链接59 = `${atob('dHJvamFuOi8v')}${密码}@${安全地址}:${端口61}?security=tls&sni=${工作器域名}&fp=chrome&type=ws&host=${工作器域名}&path=${网页套接字路径}`;
+      let 链接59 = `${SCHEME_TROJAN}${密码}@${安全地址}:${端口61}?security=tls&sni=${工作器域名}&fp=chrome&type=ws&host=${工作器域名}&path=${网页套接字路径}`;
       if (自定义应用层协议协商) 链接59 += `&alpn=${encodeURIComponent(自定义应用层协议协商)}`;
 
       // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
@@ -4571,12 +4351,12 @@ async function 生成木马链接列表来源新地址列表(列表, 用户, 工
     } else if (云墙超文本端口.includes(端口61)) {
       if (!禁用非传输层安全) {
         const 网页套接字节点名称56 = 制作节点名称(项目62);
-        const 链接55 = `${atob('dHJvamFuOi8v')}${密码}@${安全地址}:${端口61}?security=none&type=ws&host=${工作器域名}&path=${网页套接字路径}#${encodeURIComponent(网页套接字节点名称56)}`;
+        const 链接55 = `${SCHEME_TROJAN}${密码}@${安全地址}:${端口61}?security=none&type=ws&host=${工作器域名}&path=${网页套接字路径}#${encodeURIComponent(网页套接字节点名称56)}`;
         链接列表.push(链接55);
       }
     } else {
       const 网页套接字节点名称 = 制作节点名称(项目62);
-      let 链接 = `${atob('dHJvamFuOi8v')}${密码}@${安全地址}:${端口61}?security=tls&sni=${工作器域名}&fp=chrome&type=ws&host=${工作器域名}&path=${网页套接字路径}`;
+      let 链接 = `${SCHEME_TROJAN}${密码}@${安全地址}:${端口61}?security=tls&sni=${工作器域名}&fp=chrome&type=ws&host=${工作器域名}&path=${网页套接字路径}`;
       if (自定义应用层协议协商) 链接 += `&alpn=${encodeURIComponent(自定义应用层协议协商)}`;
 
       // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
@@ -4593,7 +4373,7 @@ async function 生成木马链接列表来源新地址列表(列表, 用户, 工
 }
 
 function 更新配置值() {
-  const 有效配置 = 获取有效配置快照();
+  const 有效配置 = getEffectiveConfigSnapshot({}, 键值配置);
   const 手动地区 = 有效配置.wk;
   if (手动地区 && 手动地区.trim()) {
     手动工作器地区 = 手动地区.trim().toUpperCase();
@@ -4612,16 +4392,16 @@ function 更新配置值() {
   启用木马 = 有效配置.et === 'yes';
   启用扩展传输 = 有效配置.ex === 'yes';
   传输路径 = 有效配置.tp || '';
-  订阅转换接口 = 有效配置.scu || 配置默认值.scu;
+  订阅转换接口 = 有效配置.scu || CONFIG_DEFAULTS.scu;
   启用优选域名 = 有效配置.epd === 'yes';
   启用优选地址 = 有效配置.epi === 'yes';
   启用仓库优选 = 有效配置.egi === 'yes';
   启用原生地址 = 有效配置.ena === 'yes';
   启用家宽链式 = 有效配置.jk === 'yes';
   启用加密客户端问候 = 有效配置.ech === 'yes';
-  自定义域名系统 = 有效配置.customDNS || 配置默认值.customDNS;
-  自定义加密客户端问候域名 = 有效配置.customECHDomain || 配置默认值.customECHDomain;
-  自定义应用层协议协商 = 规范化应用层协议协商(有效配置.alpn || '');
+  自定义域名系统 = 有效配置.customDNS || CONFIG_DEFAULTS.customDNS;
+  自定义加密客户端问候域名 = 有效配置.customECHDomain || CONFIG_DEFAULTS.customECHDomain;
+  自定义应用层协议协商 = normalizeAlpn(有效配置.alpn || '');
   禁用非传输层安全 = 有效配置.dkby === 'yes' || 启用加密客户端问候;
   const 降级控制值 = (有效配置.qj || '').toLowerCase();
   启用代理降级 = 降级控制值 === 'no';
@@ -4645,7 +4425,7 @@ function 更新配置值() {
 }
 
 function 更新自定义优选来源值() {
-  const 值值30 = 获取配置值('yx', '');
+  const 值值30 = getConfigValue(键值配置, 'yx', '');
   if (值值30) {
     try {
       const 优选列表 = 值值30.split(/[,\r\n]+/).map(项目29 => 项目29.trim()).filter(项目28 => 项目28);
@@ -4662,11 +4442,11 @@ function 更新自定义优选来源值() {
         const {
           address: 地址23,
           port: 端口22
-        } = 解析地址值端口(地址部分25);
+        } = parseAddressPort(地址部分25);
         if (!节点名称26) {
           节点名称26 = '自定义优选-' + 地址23 + (端口22 ? ':' + 端口22 : '');
         }
-        if (是否有效地址(地址23)) {
+        if (isValidAddress(地址23)) {
           自定义优选地址列表.push({
             ip: 地址23,
             port: 端口22,
@@ -4788,7 +4568,7 @@ function createEngine(config, uuid) {
 更新配置值();
 当前工作器地区 ||= 'CF';
 更新自定义优选来源值();
-return { render: request => 处理订阅值(request, uuid), subscribe: request => 处理订阅请求(request, uuid), defaults: 配置默认值 };
+return { render: request => 处理订阅值(request, uuid), subscribe: request => 处理订阅请求(request, uuid), defaults: CONFIG_DEFAULTS };
 }
 return createEngine(config, uuid);
 }
